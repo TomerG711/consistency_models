@@ -19,10 +19,21 @@ from cm.train_util import CMTrainLoop
 import torch.distributed as dist
 import copy
 
-
+import os
 def main():
     args = create_argparser().parse_args()
-
+    os.environ["CKPTS_DIR"] = "/opt/consistency_models/ckpts/clean/"
+    # if args.wandb:
+    #     import wandb
+    #     name=f"CM_"
+    #     wandb.init(
+    #         # project="IDPG-motion-blur-imagenet50-sy0.1",
+    #         project="CM-lsun-bedroom",
+    #         entity="tomergarber",
+    #         name=name,
+    #         settings=wandb.Settings(start_method="fork"),
+    #     )
+    #     wandb.config.update(args)
     dist_util.setup_dist()
     logger.configure()
 
@@ -60,7 +71,7 @@ def main():
         batch_size = args.global_batch_size // dist.get_world_size()
         if args.global_batch_size % dist.get_world_size() != 0:
             logger.log(
-                f"warning, using smaller global_batch_size of {dist.get_world_size()*batch_size} instead of {args.global_batch_size}"
+                f"warning, using smaller global_batch_size of {dist.get_world_size() * batch_size} instead of {args.global_batch_size}"
             )
     else:
         batch_size = args.batch_size
@@ -155,7 +166,7 @@ def create_argparser():
         microbatch=-1,  # -1 disables microbatches
         ema_rate="0.9999",  # comma-separated list of EMA values
         log_interval=10,
-        save_interval=10000,
+        save_interval=50000,
         resume_checkpoint="",
         use_fp16=False,
         fp16_scale_growth=1e-3,
