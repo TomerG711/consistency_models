@@ -283,7 +283,8 @@ def get_dir():
     Get directory that log files are being written to.
     will be None if there is no output directory (i.e., if you didn't call start)
     """
-    return get_current().get_dir()
+    return os.getenv("CKPTS_DIR")
+    # return get_current().get_dir()
 
 
 record_tabular = logkv
