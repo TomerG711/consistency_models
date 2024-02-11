@@ -23,7 +23,7 @@ from cm.karras_diffusion import karras_sample
 
 
 def main():
-    os.environ["CKPTS_DIR"] = "/opt/consistency_models/samples"
+    os.environ["CKPTS_DIR"] = "/opt/consistency_models/samples/clean"
     args = create_argparser().parse_args()
 
     dist_util.setup_dist()
