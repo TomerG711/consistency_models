@@ -9,14 +9,14 @@ from torch.utils.data import DataLoader, Dataset
 
 
 def load_data(
-    *,
-    data_dir,
-    batch_size,
-    image_size,
-    class_cond=False,
-    deterministic=False,
-    random_crop=False,
-    random_flip=True,
+        *,
+        data_dir,
+        batch_size,
+        image_size,
+        class_cond=False,
+        deterministic=False,
+        random_crop=False,
+        random_flip=True,
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -56,10 +56,12 @@ def load_data(
         random_flip=random_flip,
     )
     if deterministic:
+        # print("setting deterministic dataloader")
         loader = DataLoader(
             dataset, batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True
         )
     else:
+        # print("setting non-deterministic dataloader")
         loader = DataLoader(
             dataset, batch_size=batch_size, shuffle=True, num_workers=1, drop_last=True
         )
@@ -81,14 +83,14 @@ def _list_image_files_recursively(data_dir):
 
 class ImageDataset(Dataset):
     def __init__(
-        self,
-        resolution,
-        image_paths,
-        classes=None,
-        shard=0,
-        num_shards=1,
-        random_crop=False,
-        random_flip=True,
+            self,
+            resolution,
+            image_paths,
+            classes=None,
+            shard=0,
+            num_shards=1,
+            random_crop=False,
+            random_flip=True,
     ):
         super().__init__()
         self.resolution = resolution
@@ -101,15 +103,21 @@ class ImageDataset(Dataset):
         return len(self.local_images)
 
     def __getitem__(self, idx):
+        # print(f"getting image {idx}")
         path = self.local_images[idx]
+        # print(f"got image path: {path}")
         with bf.BlobFile(path, "rb") as f:
+            # print("opening image")
             pil_image = Image.open(f)
             pil_image.load()
+        # print("converting image to RGB")
         pil_image = pil_image.convert("RGB")
 
         if self.random_crop:
+            # print("random cropping image")
             arr = random_crop_arr(pil_image, self.resolution)
         else:
+            # print("center cropping image")
             arr = center_crop_arr(pil_image, self.resolution)
 
         if self.random_flip and random.random() < 0.5:
@@ -120,6 +128,7 @@ class ImageDataset(Dataset):
         out_dict = {}
         if self.local_classes is not None:
             out_dict["y"] = np.array(self.local_classes[idx], dtype=np.int64)
+        # print("returning image")
         return np.transpose(arr, [2, 0, 1]), out_dict
 
 
@@ -140,7 +149,7 @@ def center_crop_arr(pil_image, image_size):
     arr = np.array(pil_image)
     crop_y = (arr.shape[0] - image_size) // 2
     crop_x = (arr.shape[1] - image_size) // 2
-    return arr[crop_y : crop_y + image_size, crop_x : crop_x + image_size]
+    return arr[crop_y: crop_y + image_size, crop_x: crop_x + image_size]
 
 
 def random_crop_arr(pil_image, image_size, min_crop_frac=0.8, max_crop_frac=1.0):
@@ -164,4 +173,4 @@ def random_crop_arr(pil_image, image_size, min_crop_frac=0.8, max_crop_frac=1.0)
     arr = np.array(pil_image)
     crop_y = random.randrange(arr.shape[0] - image_size + 1)
     crop_x = random.randrange(arr.shape[1] - image_size + 1)
-    return arr[crop_y : crop_y + image_size, crop_x : crop_x + image_size]
+    return arr[crop_y: crop_y + image_size, crop_x: crop_x + image_size]

@@ -7,15 +7,18 @@ import io
 import os
 
 from PIL import Image
-# import lmdb
+import lmdb
 import numpy as np
 
 
 def read_images(lmdb_path, image_size):
+    print("Starting to read images")
+    i = 0
     env = lmdb.open(lmdb_path, map_size=1099511627776, max_readers=100, readonly=True)
     with env.begin(write=False) as transaction:
         cursor = transaction.cursor()
         for _, webp_data in cursor:
+            print(f"Reading image {i}")
             img = Image.open(io.BytesIO(webp_data))
             width, height = img.size
             scale = image_size / min(width, height)
@@ -29,6 +32,7 @@ def read_images(lmdb_path, image_size):
             w_off = (w - image_size) // 2
             arr = arr[h_off: h_off + image_size, w_off: w_off + image_size]
             yield arr
+            i = i + 1
 
 
 def read_images_tomer(images_dir, image_size):
@@ -69,10 +73,10 @@ def main():
     parser.add_argument("--image-size", help="new image size", type=int, default=256)
     parser.add_argument("--prefix", help="class name", type=str, default="bedroom")
     parser.add_argument("--tomer_reader", help="Wether to use tomer reader or regular lmdb reader ", type=bool,
-                        default=True)
+                        default=False)
     parser.add_argument("--tomer_reader_images_path", help="Path to images dir when using tomer reader", type=str,
                         default='./lsun_bedroom/data0')
-    # parser.add_argument("lmdb_path", help="path to an LSUN lmdb database")
+    parser.add_argument("lmdb_path", help="path to an LSUN lmdb database")
     parser.add_argument("out_dir", help="path to output directory")
     args = parser.parse_args()
     if args.tomer_reader:

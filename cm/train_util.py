@@ -358,11 +358,13 @@ class CMTrainLoop(TrainLoop):
 
     def run_loop(self):
         saved = False
+        # print("Before while")
         while (
             not self.lr_anneal_steps
             or self.step < self.lr_anneal_steps
             or self.global_step < self.total_training_steps
         ):
+            # print("starting while")
             batch, cond = next(self.data)
             self.run_step(batch, cond)
             saved = False
