@@ -20,9 +20,11 @@ import torch.distributed as dist
 import copy
 
 import os
+
+
 def main():
     args = create_argparser().parse_args()
-    os.environ["CKPTS_DIR"] = "/opt/consistency_models/ckpts/clean"
+    os.environ["CKPTS_DIR"] = "/opt/consistency_models/ckpts/clean_64"
     # if args.wandb:
     #     import wandb
     #     name=f"CM_"
@@ -36,6 +38,17 @@ def main():
     #     wandb.config.update(args)
     dist_util.setup_dist()
     logger.configure()
+
+    if args.wandb:
+        import wandb
+        wandb.init(
+            # project="IDPG-motion-blur-imagenet50-sy0.1",
+            project=args.wandb_project,
+            entity="tomergarber",
+            name=args.wandb_experiment_name,
+            settings=wandb.Settings(start_method="fork"),
+        )
+        wandb.config.update(args)
 
     logger.log("creating model and diffusion...")
     ema_scale_fn = create_ema_and_scales_fn(
@@ -151,6 +164,7 @@ def main():
         schedule_sampler=schedule_sampler,
         weight_decay=args.weight_decay,
         lr_anneal_steps=args.lr_anneal_steps,
+        wandb=args.wandb
     ).run_loop()
 
 
@@ -166,10 +180,13 @@ def create_argparser():
         microbatch=-1,  # -1 disables microbatches
         ema_rate="0.9999",  # comma-separated list of EMA values
         log_interval=10,
-        save_interval=50000,
+        save_interval=20000,
         resume_checkpoint="",
         use_fp16=False,
         fp16_scale_growth=1e-3,
+        wandb=False,
+        wandb_project="",
+        wandb_experiment_name=""
     )
     defaults.update(model_and_diffusion_defaults())
     defaults.update(cm_train_defaults())

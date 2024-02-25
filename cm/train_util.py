@@ -1,7 +1,7 @@
 import copy
 import functools
 import os
-
+import wandb
 import blobfile as bf
 import torch as th
 import torch.distributed as dist
@@ -28,23 +28,24 @@ INITIAL_LOG_LOSS_SCALE = 20.0
 
 class TrainLoop:
     def __init__(
-        self,
-        *,
-        model,
-        diffusion,
-        data,
-        batch_size,
-        microbatch,
-        lr,
-        ema_rate,
-        log_interval,
-        save_interval,
-        resume_checkpoint,
-        use_fp16=False,
-        fp16_scale_growth=1e-3,
-        schedule_sampler=None,
-        weight_decay=0.0,
-        lr_anneal_steps=0,
+            self,
+            *,
+            model,
+            diffusion,
+            data,
+            batch_size,
+            microbatch,
+            lr,
+            ema_rate,
+            log_interval,
+            save_interval,
+            resume_checkpoint,
+            use_fp16=False,
+            fp16_scale_growth=1e-3,
+            schedule_sampler=None,
+            weight_decay=0.0,
+            lr_anneal_steps=0,
+            wandb=False
     ):
         self.model = model
         self.diffusion = diffusion
@@ -115,6 +116,7 @@ class TrainLoop:
             self.ddp_model = self.model
 
         self.step = self.resume_step
+        self.wandb=wandb
 
     def _load_and_sync_parameters(self):
         resume_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
@@ -187,9 +189,9 @@ class TrainLoop:
     def forward_backward(self, batch, cond):
         self.mp_trainer.zero_grad()
         for i in range(0, batch.shape[0], self.microbatch):
-            micro = batch[i : i + self.microbatch].to(dist_util.dev())
+            micro = batch[i: i + self.microbatch].to(dist_util.dev())
             micro_cond = {
-                k: v[i : i + self.microbatch].to(dist_util.dev())
+                k: v[i: i + self.microbatch].to(dist_util.dev())
                 for k, v in cond.items()
             }
             last_batch = (i + self.microbatch) >= batch.shape[0]
@@ -242,9 +244,9 @@ class TrainLoop:
             if dist.get_rank() == 0:
                 logger.log(f"saving model {rate}...")
                 if not rate:
-                    filename = f"model{(self.step+self.resume_step):06d}.pt"
+                    filename = f"model{(self.step + self.resume_step):06d}.pt"
                 else:
-                    filename = f"ema_{rate}_{(self.step+self.resume_step):06d}.pt"
+                    filename = f"ema_{rate}_{(self.step + self.resume_step):06d}.pt"
                 with bf.BlobFile(bf.join(get_blob_logdir(), filename), "wb") as f:
                     th.save(state_dict, f)
 
@@ -253,8 +255,8 @@ class TrainLoop:
 
         if dist.get_rank() == 0:
             with bf.BlobFile(
-                bf.join(get_blob_logdir(), f"opt{(self.step+self.resume_step):06d}.pt"),
-                "wb",
+                    bf.join(get_blob_logdir(), f"opt{(self.step + self.resume_step):06d}.pt"),
+                    "wb",
             ) as f:
                 th.save(self.opt.state_dict(), f)
 
@@ -266,15 +268,15 @@ class TrainLoop:
 
 class CMTrainLoop(TrainLoop):
     def __init__(
-        self,
-        *,
-        target_model,
-        teacher_model,
-        teacher_diffusion,
-        training_mode,
-        ema_scale_fn,
-        total_training_steps,
-        **kwargs,
+            self,
+            *,
+            target_model,
+            teacher_model,
+            teacher_diffusion,
+            training_mode,
+            ema_scale_fn,
+            total_training_steps,
+            **kwargs,
     ):
         super().__init__(**kwargs)
         self.training_mode = training_mode
@@ -360,18 +362,18 @@ class CMTrainLoop(TrainLoop):
         saved = False
         # print("Before while")
         while (
-            not self.lr_anneal_steps
-            or self.step < self.lr_anneal_steps
-            or self.global_step < self.total_training_steps
+                not self.lr_anneal_steps
+                or self.step < self.lr_anneal_steps
+                or self.global_step < self.total_training_steps
         ):
             # print("starting while")
             batch, cond = next(self.data)
             self.run_step(batch, cond)
             saved = False
             if (
-                self.global_step
-                and self.save_interval != -1
-                and self.global_step % self.save_interval == 0
+                    self.global_step
+                    and self.save_interval != -1
+                    and self.global_step % self.save_interval == 0
             ):
                 self.save()
                 saved = True
@@ -446,9 +448,9 @@ class CMTrainLoop(TrainLoop):
     def forward_backward(self, batch, cond):
         self.mp_trainer.zero_grad()
         for i in range(0, batch.shape[0], self.microbatch):
-            micro = batch[i : i + self.microbatch].to(dist_util.dev())
+            micro = batch[i: i + self.microbatch].to(dist_util.dev())
             micro_cond = {
-                k: v[i : i + self.microbatch].to(dist_util.dev())
+                k: v[i: i + self.microbatch].to(dist_util.dev())
                 for k, v in cond.items()
             }
             last_batch = (i + self.microbatch) >= batch.shape[0]
@@ -515,6 +517,8 @@ class CMTrainLoop(TrainLoop):
             log_loss_dict(
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
+            if self.wandb:
+                wandb.log({"lpips": loss})
             self.mp_trainer.backward(loss)
 
     def save(self):
@@ -539,8 +543,8 @@ class CMTrainLoop(TrainLoop):
         logger.log("saving optimizer state...")
         if dist.get_rank() == 0:
             with bf.BlobFile(
-                bf.join(get_blob_logdir(), f"opt{step:06d}.pt"),
-                "wb",
+                    bf.join(get_blob_logdir(), f"opt{step:06d}.pt"),
+                    "wb",
             ) as f:
                 th.save(self.opt.state_dict(), f)
 
@@ -587,7 +591,7 @@ def get_blob_logdir():
     # a blobstore or some external drive.
     # return "/opt/consistency_models/ckpts"
     return os.getenv("CKPTS_DIR")
-    #return logger.get_dir()
+    # return logger.get_dir()
 
 
 def find_resume_checkpoint():
