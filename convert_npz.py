@@ -2,12 +2,12 @@ import numpy as np
 from PIL import Image
 import os
 
-npz_path = '/opt/consistency_models/samples/clean/samples_100x256x256x3.npz'
+npz_path = '/opt/consistency_models/samples/clean_64/samples_100x64x64x3.npz'
 data = np.load(npz_path)
 
 images = data['arr_0']
 
-output_dir = '/opt/consistency_models/samples/clean/images_converted'
+output_dir = '/opt/consistency_models/samples/clean_64/images_converted'
 
 print(f"Creating output dir: {output_dir}")
 if not os.path.exists(output_dir):

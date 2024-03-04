@@ -14,6 +14,17 @@ from . import dist_util
 from .nn import mean_flat, append_dims, append_zero
 from .random_util import get_generator
 
+from . import logger
+
+def calc_wavelets(image):
+    low_pass = (image[:, :, :, ::2] + image[:, :, :, 1::2])
+    high_pass = (image[:, :, :, ::2] - image[:, :, :, 1::2])
+    ll = (low_pass[:, :, ::2, :] + low_pass[:, :, 1::2, :])
+    lh = (low_pass[:, :, ::2, :] - low_pass[:, :, 1::2, :])
+    hl = (high_pass[:, :, ::2, :] + high_pass[:, :, 1::2, :])
+    hh = (high_pass[:, :, ::2, :] - high_pass[:, :, 1::2, :])
+    return ll, lh, hl, hh
+
 
 def get_weightings(weight_schedule, snrs, sigma_data):
     if weight_schedule == "snr":
@@ -21,7 +32,7 @@ def get_weightings(weight_schedule, snrs, sigma_data):
     elif weight_schedule == "snr+1":
         weightings = snrs + 1
     elif weight_schedule == "karras":
-        weightings = snrs + 1.0 / sigma_data**2
+        weightings = snrs + 1.0 / sigma_data ** 2
     elif weight_schedule == "truncated-snr":
         weightings = th.clamp(snrs, min=1.0)
     elif weight_schedule == "uniform":
@@ -33,14 +44,14 @@ def get_weightings(weight_schedule, snrs, sigma_data):
 
 class KarrasDenoiser:
     def __init__(
-        self,
-        sigma_data: float = 0.5,
-        sigma_max=80.0,
-        sigma_min=0.002,
-        rho=7.0,
-        weight_schedule="karras",
-        distillation=False,
-        loss_norm="lpips",
+            self,
+            sigma_data: float = 0.5,
+            sigma_max=80.0,
+            sigma_min=0.002,
+            rho=7.0,
+            weight_schedule="karras",
+            distillation=False,
+            loss_norm="lpips",
     ):
         self.sigma_data = sigma_data
         self.sigma_max = sigma_max
@@ -54,27 +65,27 @@ class KarrasDenoiser:
         self.num_timesteps = 40
 
     def get_snr(self, sigmas):
-        return sigmas**-2
+        return sigmas ** -2
 
     def get_sigmas(self, sigmas):
         return sigmas
 
     def get_scalings(self, sigma):
-        c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
-        c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2) ** 0.5
-        c_in = 1 / (sigma**2 + self.sigma_data**2) ** 0.5
+        c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
+        c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
+        c_in = 1 / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
         return c_skip, c_out, c_in
 
     def get_scalings_for_boundary_condition(self, sigma):
-        c_skip = self.sigma_data**2 / (
-            (sigma - self.sigma_min) ** 2 + self.sigma_data**2
+        c_skip = self.sigma_data ** 2 / (
+                (sigma - self.sigma_min) ** 2 + self.sigma_data ** 2
         )
         c_out = (
-            (sigma - self.sigma_min)
-            * self.sigma_data
-            / (sigma**2 + self.sigma_data**2) ** 0.5
+                (sigma - self.sigma_min)
+                * self.sigma_data
+                / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
         )
-        c_in = 1 / (sigma**2 + self.sigma_data**2) ** 0.5
+        c_in = 1 / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
         return c_skip, c_out, c_in
 
     def training_losses(self, model, x_start, sigmas, model_kwargs=None, noise=None):
@@ -104,15 +115,15 @@ class KarrasDenoiser:
         return terms
 
     def consistency_losses(
-        self,
-        model,
-        x_start,
-        num_scales,
-        model_kwargs=None,
-        target_model=None,
-        teacher_model=None,
-        teacher_diffusion=None,
-        noise=None,
+            self,
+            model,
+            x_start,
+            num_scales,
+            model_kwargs=None,
+            target_model=None,
+            teacher_model=None,
+            teacher_diffusion=None,
+            noise=None,
     ):
         if model_kwargs is None:
             model_kwargs = {}
@@ -134,7 +145,6 @@ class KarrasDenoiser:
             raise NotImplementedError("Must have a target model")
 
         if teacher_model:
-
             @th.no_grad()
             def teacher_denoise_fn(x, t):
                 return teacher_diffusion.denoise(teacher_model, x, t, **model_kwargs)[1]
@@ -176,14 +186,14 @@ class KarrasDenoiser:
         )
 
         t = self.sigma_max ** (1 / self.rho) + indices / (num_scales - 1) * (
-            self.sigma_min ** (1 / self.rho) - self.sigma_max ** (1 / self.rho)
+                self.sigma_min ** (1 / self.rho) - self.sigma_max ** (1 / self.rho)
         )
-        t = t**self.rho
+        t = t ** self.rho
 
         t2 = self.sigma_max ** (1 / self.rho) + (indices + 1) / (num_scales - 1) * (
-            self.sigma_min ** (1 / self.rho) - self.sigma_max ** (1 / self.rho)
+                self.sigma_min ** (1 / self.rho) - self.sigma_max ** (1 / self.rho)
         )
-        t2 = t2**self.rho
+        t2 = t2 ** self.rho
 
         x_t = x_start + noise * append_dims(t, dims)
 
@@ -198,6 +208,10 @@ class KarrasDenoiser:
         th.set_rng_state(dropout_state)
         distiller_target = target_denoise_fn(x_t2, t2)
         distiller_target = distiller_target.detach()
+
+        dis_wave_loss = calc_wavelets(distiller)[3]
+        target_wave_loss = calc_wavelets(distiller_target)[3]
+        wave_l1_loss = F.l1_loss(dis_wave_loss, target_wave_loss)
 
         snrs = self.get_snr(t)
         weights = get_weightings(self.weight_schedule, snrs, self.sigma_data)
@@ -224,29 +238,32 @@ class KarrasDenoiser:
                 )
 
             loss = (
-                self.lpips_loss(
-                    (distiller + 1) / 2.0,
-                    (distiller_target + 1) / 2.0,
-                )
-                * weights
+                    self.lpips_loss(
+                        (distiller + 1) / 2.0,
+                        (distiller_target + 1) / 2.0,
+                    )
+                    * weights
             )
         else:
             raise ValueError(f"Unknown loss norm {self.loss_norm}")
-
+        # TODO: lpips and l1 loss should be logged separately, but used together before backward
+        # TODO: add regularization (do 4 runs: 0.25, 0.5, 0.75, 1)
+        # logger.logkv_mean()
         terms = {}
+        terms["wavelets"] = wave_l1_loss
         terms["loss"] = loss
 
         return terms
 
     def progdist_losses(
-        self,
-        model,
-        x_start,
-        num_scales,
-        model_kwargs=None,
-        teacher_model=None,
-        teacher_diffusion=None,
-        noise=None,
+            self,
+            model,
+            x_start,
+            num_scales,
+            model_kwargs=None,
+            teacher_model=None,
+            teacher_diffusion=None,
+            noise=None,
     ):
         if model_kwargs is None:
             model_kwargs = {}
@@ -281,19 +298,19 @@ class KarrasDenoiser:
         indices = th.randint(0, num_scales, (x_start.shape[0],), device=x_start.device)
 
         t = self.sigma_max ** (1 / self.rho) + indices / num_scales * (
-            self.sigma_min ** (1 / self.rho) - self.sigma_max ** (1 / self.rho)
+                self.sigma_min ** (1 / self.rho) - self.sigma_max ** (1 / self.rho)
         )
-        t = t**self.rho
+        t = t ** self.rho
 
         t2 = self.sigma_max ** (1 / self.rho) + (indices + 0.5) / num_scales * (
-            self.sigma_min ** (1 / self.rho) - self.sigma_max ** (1 / self.rho)
+                self.sigma_min ** (1 / self.rho) - self.sigma_max ** (1 / self.rho)
         )
-        t2 = t2**self.rho
+        t2 = t2 ** self.rho
 
         t3 = self.sigma_max ** (1 / self.rho) + (indices + 1) / num_scales * (
-            self.sigma_min ** (1 / self.rho) - self.sigma_max ** (1 / self.rho)
+                self.sigma_min ** (1 / self.rho) - self.sigma_max ** (1 / self.rho)
         )
-        t3 = t3**self.rho
+        t3 = t3 ** self.rho
 
         x_t = x_start + noise * append_dims(t, dims)
 
@@ -317,15 +334,15 @@ class KarrasDenoiser:
                 denoised_x = F.interpolate(denoised_x, size=224, mode="bilinear")
                 target_x = F.interpolate(target_x, size=224, mode="bilinear")
             loss = (
-                self.lpips_loss(
-                    (denoised_x + 1) / 2.0,
-                    (target_x + 1) / 2.0,
-                )
-                * weights
+                    self.lpips_loss(
+                        (denoised_x + 1) / 2.0,
+                        (target_x + 1) / 2.0,
+                    )
+                    * weights
             )
         else:
             raise ValueError(f"Unknown loss norm {self.loss_norm}")
-
+        # TODO: Add here wavelets regularization to loss
         terms = {}
         terms["loss"] = loss
 
@@ -350,25 +367,25 @@ class KarrasDenoiser:
 
 
 def karras_sample(
-    diffusion,
-    model,
-    shape,
-    steps,
-    clip_denoised=True,
-    progress=False,
-    callback=None,
-    model_kwargs=None,
-    device=None,
-    sigma_min=0.002,
-    sigma_max=80,  # higher for highres?
-    rho=7.0,
-    sampler="heun",
-    s_churn=0.0,
-    s_tmin=0.0,
-    s_tmax=float("inf"),
-    s_noise=1.0,
-    generator=None,
-    ts=None,
+        diffusion,
+        model,
+        shape,
+        steps,
+        clip_denoised=True,
+        progress=False,
+        callback=None,
+        model_kwargs=None,
+        device=None,
+        sigma_min=0.002,
+        sigma_max=80,  # higher for highres?
+        rho=7.0,
+        sampler="heun",
+        s_churn=0.0,
+        s_tmin=0.0,
+        s_tmax=float("inf"),
+        s_noise=1.0,
+        generator=None,
+        ts=None,
 ):
     if generator is None:
         generator = get_generator("dummy")
@@ -437,9 +454,9 @@ def get_ancestral_step(sigma_from, sigma_to):
     """Calculates the noise level (sigma_down) to step down to and the amount
     of noise to add (sigma_up) when doing an ancestral sampling step."""
     sigma_up = (
-        sigma_to**2 * (sigma_from**2 - sigma_to**2) / sigma_from**2
-    ) ** 0.5
-    sigma_down = (sigma_to**2 - sigma_up**2) ** 0.5
+                       sigma_to ** 2 * (sigma_from ** 2 - sigma_to ** 2) / sigma_from ** 2
+               ) ** 0.5
+    sigma_down = (sigma_to ** 2 - sigma_up ** 2) ** 0.5
     return sigma_down, sigma_up
 
 
@@ -495,16 +512,16 @@ def sample_midpoint_ancestral(model, x, ts, generator, progress=False, callback=
 
 @th.no_grad()
 def sample_heun(
-    denoiser,
-    x,
-    sigmas,
-    generator,
-    progress=False,
-    callback=None,
-    s_churn=0.0,
-    s_tmin=0.0,
-    s_tmax=float("inf"),
-    s_noise=1.0,
+        denoiser,
+        x,
+        sigmas,
+        generator,
+        progress=False,
+        callback=None,
+        s_churn=0.0,
+        s_tmin=0.0,
+        s_tmax=float("inf"),
+        s_noise=1.0,
 ):
     """Implements Algorithm 2 (Heun steps) from Karras et al. (2022)."""
     s_in = x.new_ones([x.shape[0]])
@@ -516,14 +533,14 @@ def sample_heun(
 
     for i in indices:
         gamma = (
-            min(s_churn / (len(sigmas) - 1), 2**0.5 - 1)
+            min(s_churn / (len(sigmas) - 1), 2 ** 0.5 - 1)
             if s_tmin <= sigmas[i] <= s_tmax
             else 0.0
         )
         eps = generator.randn_like(x) * s_noise
         sigma_hat = sigmas[i] * (gamma + 1)
         if gamma > 0:
-            x = x + eps * (sigma_hat**2 - sigmas[i] ** 2) ** 0.5
+            x = x + eps * (sigma_hat ** 2 - sigmas[i] ** 2) ** 0.5
         denoised = denoiser(x, sigma_hat * s_in)
         d = to_d(x, sigma_hat, denoised)
         if callback is not None:
@@ -552,12 +569,12 @@ def sample_heun(
 
 @th.no_grad()
 def sample_euler(
-    denoiser,
-    x,
-    sigmas,
-    generator,
-    progress=False,
-    callback=None,
+        denoiser,
+        x,
+        sigmas,
+        generator,
+        progress=False,
+        callback=None,
 ):
     """Implements Algorithm 2 (Heun steps) from Karras et al. (2022)."""
     s_in = x.new_ones([x.shape[0]])
@@ -587,16 +604,16 @@ def sample_euler(
 
 @th.no_grad()
 def sample_dpm(
-    denoiser,
-    x,
-    sigmas,
-    generator,
-    progress=False,
-    callback=None,
-    s_churn=0.0,
-    s_tmin=0.0,
-    s_tmax=float("inf"),
-    s_noise=1.0,
+        denoiser,
+        x,
+        sigmas,
+        generator,
+        progress=False,
+        callback=None,
+        s_churn=0.0,
+        s_tmin=0.0,
+        s_tmax=float("inf"),
+        s_noise=1.0,
 ):
     """A sampler inspired by DPM-Solver-2 and Algorithm 2 from Karras et al. (2022)."""
     s_in = x.new_ones([x.shape[0]])
@@ -608,14 +625,14 @@ def sample_dpm(
 
     for i in indices:
         gamma = (
-            min(s_churn / (len(sigmas) - 1), 2**0.5 - 1)
+            min(s_churn / (len(sigmas) - 1), 2 ** 0.5 - 1)
             if s_tmin <= sigmas[i] <= s_tmax
             else 0.0
         )
         eps = generator.randn_like(x) * s_noise
         sigma_hat = sigmas[i] * (gamma + 1)
         if gamma > 0:
-            x = x + eps * (sigma_hat**2 - sigmas[i] ** 2) ** 0.5
+            x = x + eps * (sigma_hat ** 2 - sigmas[i] ** 2) ** 0.5
         denoised = denoiser(x, sigma_hat * s_in)
         d = to_d(x, sigma_hat, denoised)
         if callback is not None:
@@ -641,12 +658,12 @@ def sample_dpm(
 
 @th.no_grad()
 def sample_onestep(
-    distiller,
-    x,
-    sigmas,
-    generator=None,
-    progress=False,
-    callback=None,
+        distiller,
+        x,
+        sigmas,
+        generator=None,
+        progress=False,
+        callback=None,
 ):
     """Single-step generation from a distilled model."""
     s_in = x.new_ones([x.shape[0]])
@@ -655,17 +672,17 @@ def sample_onestep(
 
 @th.no_grad()
 def stochastic_iterative_sampler(
-    distiller,
-    x,
-    sigmas,
-    generator,
-    ts,
-    progress=False,
-    callback=None,
-    t_min=0.002,
-    t_max=80.0,
-    rho=7.0,
-    steps=40,
+        distiller,
+        x,
+        sigmas,
+        generator,
+        ts,
+        progress=False,
+        callback=None,
+        t_min=0.002,
+        t_max=80.0,
+        rho=7.0,
+        steps=40,
 ):
     t_max_rho = t_max ** (1 / rho)
     t_min_rho = t_min ** (1 / rho)
@@ -676,19 +693,19 @@ def stochastic_iterative_sampler(
         x0 = distiller(x, t * s_in)
         next_t = (t_max_rho + ts[i + 1] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
         next_t = np.clip(next_t, t_min, t_max)
-        x = x0 + generator.randn_like(x) * np.sqrt(next_t**2 - t_min**2)
+        x = x0 + generator.randn_like(x) * np.sqrt(next_t ** 2 - t_min ** 2)
 
     return x
 
 
 @th.no_grad()
 def sample_progdist(
-    denoiser,
-    x,
-    sigmas,
-    generator=None,
-    progress=False,
-    callback=None,
+        denoiser,
+        x,
+        sigmas,
+        generator=None,
+        progress=False,
+        callback=None,
 ):
     s_in = x.new_ones([x.shape[0]])
     sigmas = sigmas[:-1]  # skip the zero sigma
@@ -720,15 +737,15 @@ def sample_progdist(
 
 @th.no_grad()
 def iterative_colorization(
-    distiller,
-    images,
-    x,
-    ts,
-    t_min=0.002,
-    t_max=80.0,
-    rho=7.0,
-    steps=40,
-    generator=None,
+        distiller,
+        images,
+        x,
+        ts,
+        t_min=0.002,
+        t_max=80.0,
+        rho=7.0,
+        steps=40,
+        generator=None,
 ):
     def obtain_orthogonal_matrix():
         vector = np.asarray([0.2989, 0.5870, 0.1140])
@@ -764,22 +781,22 @@ def iterative_colorization(
         x0 = replacement(images, x0)
         next_t = (t_max_rho + ts[i + 1] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
         next_t = np.clip(next_t, t_min, t_max)
-        x = x0 + generator.randn_like(x) * np.sqrt(next_t**2 - t_min**2)
+        x = x0 + generator.randn_like(x) * np.sqrt(next_t ** 2 - t_min ** 2)
 
     return x, images
 
 
 @th.no_grad()
 def iterative_inpainting(
-    distiller,
-    images,
-    x,
-    ts,
-    t_min=0.002,
-    t_max=80.0,
-    rho=7.0,
-    steps=40,
-    generator=None,
+        distiller,
+        images,
+        x,
+        ts,
+        t_min=0.002,
+        t_max=80.0,
+        rho=7.0,
+        steps=40,
+        generator=None,
 ):
     from PIL import Image, ImageDraw, ImageFont
 
@@ -825,29 +842,29 @@ def iterative_inpainting(
         x0 = replacement(images, x0)
         next_t = (t_max_rho + ts[i + 1] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
         next_t = np.clip(next_t, t_min, t_max)
-        x = x0 + generator.randn_like(x) * np.sqrt(next_t**2 - t_min**2)
+        x = x0 + generator.randn_like(x) * np.sqrt(next_t ** 2 - t_min ** 2)
 
     return x, images
 
 
 @th.no_grad()
 def iterative_superres(
-    distiller,
-    images,
-    x,
-    ts,
-    t_min=0.002,
-    t_max=80.0,
-    rho=7.0,
-    steps=40,
-    generator=None,
+        distiller,
+        images,
+        x,
+        ts,
+        t_min=0.002,
+        t_max=80.0,
+        rho=7.0,
+        steps=40,
+        generator=None,
 ):
     patch_size = 8
 
     def obtain_orthogonal_matrix():
-        vector = np.asarray([1] * patch_size**2)
+        vector = np.asarray([1] * patch_size ** 2)
         vector = vector / np.linalg.norm(vector)
-        matrix = np.eye(patch_size**2)
+        matrix = np.eye(patch_size ** 2)
         matrix[:, 0] = vector
         matrix = np.linalg.qr(matrix)[0]
         if np.sum(matrix[:, 0]) < 0:
@@ -870,7 +887,7 @@ def iterative_superres(
                 patch_size,
             )
             .permute(0, 1, 2, 4, 3, 5)
-            .reshape(-1, 3, image_size**2 // patch_size**2, patch_size**2)
+            .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
         )
         x1_flatten = (
             x1.reshape(-1, 3, image_size, image_size)
@@ -883,7 +900,7 @@ def iterative_superres(
                 patch_size,
             )
             .permute(0, 1, 2, 4, 3, 5)
-            .reshape(-1, 3, image_size**2 // patch_size**2, patch_size**2)
+            .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
         )
         x0 = th.einsum("bcnd,de->bcne", x0_flatten, Q)
         x1 = th.einsum("bcnd,de->bcne", x1_flatten, Q)
@@ -917,7 +934,7 @@ def iterative_superres(
                 patch_size,
             )
             .permute(0, 1, 2, 4, 3, 5)
-            .reshape(-1, 3, image_size**2 // patch_size**2, patch_size**2)
+            .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
         )
         x_flatten[..., :] = x_flatten.mean(dim=-1, keepdim=True)
         return (
@@ -945,6 +962,6 @@ def iterative_superres(
         x0 = replacement(images, x0)
         next_t = (t_max_rho + ts[i + 1] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
         next_t = np.clip(next_t, t_min, t_max)
-        x = x0 + generator.randn_like(x) * np.sqrt(next_t**2 - t_min**2)
+        x = x0 + generator.randn_like(x) * np.sqrt(next_t ** 2 - t_min ** 2)
 
     return x, images

@@ -116,7 +116,7 @@ class TrainLoop:
             self.ddp_model = self.model
 
         self.step = self.resume_step
-        self.wandb=wandb
+        self.wandb = wandb
 
     def _load_and_sync_parameters(self):
         resume_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
@@ -512,14 +512,17 @@ class CMTrainLoop(TrainLoop):
                     t, losses["loss"].detach()
                 )
 
-            loss = (losses["loss"] * weights).mean()
+            lpips = (losses["loss"] * weights).mean()
+            wavelets = losses["wavelets"]  # Mean calculated by default
 
             log_loss_dict(
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
+            final_loss = lpips# + wavelets * 0.01  # TODO: Make this hyper-param
             if self.wandb:
-                wandb.log({"lpips": loss})
-            self.mp_trainer.backward(loss)
+                wandb.log({"lpips": lpips, "wavelets": wavelets, "loss": final_loss})
+
+            self.mp_trainer.backward(final_loss)
 
     def save(self):
         import blobfile as bf
