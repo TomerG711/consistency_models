@@ -13,8 +13,18 @@ from . import dist_util
 
 from .nn import mean_flat, append_dims, append_zero
 from .random_util import get_generator
-
+from PIL import Image
 from . import logger
+
+def save_as_png(image, filename):
+    # Convert the image data to uint8
+    # print(image)
+    image_data = np.uint8(image * 255.0)
+    # Create and save the image
+    img = Image.fromarray(np.array(image_data).astype(np.uint8).transpose((2, 1, 0)))
+    # img = Image.fromarray(image_data,'RGB')
+    print(img.size)
+    img.save(filename)
 
 def calc_wavelets(image):
     low_pass = (image[:, :, :, ::2] + image[:, :, :, 1::2])
@@ -23,6 +33,16 @@ def calc_wavelets(image):
     lh = (low_pass[:, :, ::2, :] - low_pass[:, :, 1::2, :])
     hl = (high_pass[:, :, ::2, :] + high_pass[:, :, 1::2, :])
     hh = (high_pass[:, :, ::2, :] - high_pass[:, :, 1::2, :])
+
+    # Select the first image's coefficients
+    ll_first = ll[0].cpu().detach().numpy()
+    lh_first = lh[0].cpu().detach().numpy()
+    hl_first = hl[0].cpu().detach().numpy()
+    hh_first = hh[0].cpu().detach().numpy()
+    print(ll_first.shape, lh_first.shape, hl_first.shape, hh_first.shape)
+    combined_image = np.concatenate((ll_first, lh_first, hl_first, hh_first), axis=1)
+    print(combined_image.shape)
+    save_as_png(combined_image, "/opt/consistency_models/delete/combined_wavelets.png")
     return ll, lh, hl, hh
 
 
@@ -209,8 +229,8 @@ class KarrasDenoiser:
         distiller_target = target_denoise_fn(x_t2, t2)
         distiller_target = distiller_target.detach()
 
-        dis_wave_loss = calc_wavelets(distiller)[3]
-        target_wave_loss = calc_wavelets(distiller_target)[3]
+        dis_wave_loss = calc_wavelets((distiller + 1) / 2.0)[3]
+        target_wave_loss = calc_wavelets((distiller_target + 1) / 2.0)[3]
         wave_l1_loss = F.l1_loss(dis_wave_loss, target_wave_loss)
 
         snrs = self.get_snr(t)
