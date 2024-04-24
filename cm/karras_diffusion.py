@@ -64,7 +64,7 @@ def calc_wavelets(image):
     combined_image = np.concatenate((ll_first, lh_first, hl_first, hh_first), axis=2)
     # print(combined_image.shape)
     if i % 1000==0:
-        save_as_png(combined_image, f"/opt/consistency_models/wavelets_samples/dist_target_comp/hh_0.5/combined_wavelets_{i}.png")
+        save_as_png(combined_image, f"/opt/consistency_models/wavelets_samples/dist_target_comp/hh_0/combined_wavelets_{i}.png")
     i+=1
     return ll, lh, hl, hh
 
