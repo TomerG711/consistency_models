@@ -15,34 +15,57 @@ from .nn import mean_flat, append_dims, append_zero
 from .random_util import get_generator
 from PIL import Image
 from . import logger
-
+i=0
+def normalize_to_zero_one(arr):
+    min_val = arr.min()
+    max_val = arr.max()
+    normalized_arr = (arr - min_val) / (max_val - min_val)
+    return normalized_arr
 def save_as_png(image, filename):
     # Convert the image data to uint8
     # print(image)
-    image_data = np.uint8(image * 255.0)
+    # image_data = np.uint8(image * 255.0)
+    # print(image.shape)
+    # print(image.min(), image.max())
+    image_data = normalize_to_zero_one(image)
+    # print(image_data.shape)
+    # print(image_data.min(), image_data.max())
     # Create and save the image
-    img = Image.fromarray(np.array(image_data).astype(np.uint8).transpose((2, 1, 0)))
+    # img = Image.fromarray(np.array(image_data).astype(np.uint8).transpose((2, 1, 0)))
+    # print(np.array(image_data).transpose((2, 1, 0)).shape)
+    img = Image.fromarray((image_data * 255).astype(np.uint8).transpose((1,2,0)))
     # img = Image.fromarray(image_data,'RGB')
-    print(img.size)
+    # print(img.size)
     img.save(filename)
 
 def calc_wavelets(image):
-    low_pass = (image[:, :, :, ::2] + image[:, :, :, 1::2])
-    high_pass = (image[:, :, :, ::2] - image[:, :, :, 1::2])
-    ll = (low_pass[:, :, ::2, :] + low_pass[:, :, 1::2, :])
-    lh = (low_pass[:, :, ::2, :] - low_pass[:, :, 1::2, :])
-    hl = (high_pass[:, :, ::2, :] + high_pass[:, :, 1::2, :])
-    hh = (high_pass[:, :, ::2, :] - high_pass[:, :, 1::2, :])
-
+    global i
+    # low_pass = (image[:, :, :, ::2] + image[:, :, :, 1::2])
+    # high_pass = (image[:, :, :, ::2] - image[:, :, :, 1::2])
+    # ll = (low_pass[:, :, ::2, :] + low_pass[:, :, 1::2, :])
+    # lh = (low_pass[:, :, ::2, :] - low_pass[:, :, 1::2, :])
+    # hl = (high_pass[:, :, ::2, :] + high_pass[:, :, 1::2, :])
+    # hh = (high_pass[:, :, ::2, :] - high_pass[:, :, 1::2, :])
+    # print(image.shape)
+    x1 = image[:, :, 0::2, 0::2]  # x(2i−1, 2j−1)
+    x2 = image[:, :, 1::2, 0::2]  # x(2i, 2j-1)
+    x3 = image[:, :, 0::2, 1::2]  # x(2i−1, 2j)
+    x4 = image[:, :, 1::2, 1::2]  # x(2i, 2j)
+    ll = x1 + x2 + x3 + x4
+    lh = -x1 - x3 + x2 + x4
+    hl = -x1 + x3 - x2 + x4
+    hh = x1 - x3 - x2 + x4
     # Select the first image's coefficients
     ll_first = ll[0].cpu().detach().numpy()
     lh_first = lh[0].cpu().detach().numpy()
     hl_first = hl[0].cpu().detach().numpy()
     hh_first = hh[0].cpu().detach().numpy()
-    print(ll_first.shape, lh_first.shape, hl_first.shape, hh_first.shape)
-    combined_image = np.concatenate((ll_first, lh_first, hl_first, hh_first), axis=1)
-    print(combined_image.shape)
-    save_as_png(combined_image, "/opt/consistency_models/delete/combined_wavelets.png")
+    # print(ll_first.shape, lh_first.shape, hl_first.shape, hh_first.shape)
+    combined_image = np.concatenate((ll_first, lh_first, hl_first, hh_first), axis=2)
+    # print(combined_image.shape)
+    if i % 1000==0:
+        save_as_png(combined_image, f"/opt/consistency_models/wavelets_samples/dist_target_comp/hh_0.5/combined_wavelets_{i}.png")
+    i+=1
     return ll, lh, hl, hh
 
 

@@ -24,7 +24,7 @@ import os
 
 def main():
     args = create_argparser().parse_args()
-    os.environ["CKPTS_DIR"] = "/opt/consistency_models/ckpts/64_wavelets_hh_0"
+    os.environ["CKPTS_DIR"] = "/opt/consistency_models/ckpts/64_dist_target_comp_hh_0.5"
     # if args.wandb:
     #     import wandb
     #     name=f"CM_"
