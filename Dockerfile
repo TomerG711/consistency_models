@@ -1,5 +1,6 @@
 #FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 #
+
 #ENV DEBIAN_FRONTEND=noninteractive PIP_PREFER_BINARY=1
 #
 #RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -51,7 +52,8 @@ CMD mpiexec --allow-run-as-root -n 1 python cm_train.py --training_mode consiste
 --ema_rate 0.9999,0.99994,0.9999432189950708 --global_batch_size 64 --image_size 64 --lr 0.00005 --num_channels 256 \
 --num_head_channels 64 --num_res_blocks 2 --resblock_updown True --schedule_sampler uniform --use_fp16 True \
 --weight_decay 0.0 --weight_schedule uniform --data_dir /opt/consistency_models/lsun/lsun_bedroom_processed_64 --log_interval 1 \
---save_interval 20000 --wandb True --wandb_project consistency-models --wandb_experiment_name CM_lsun_bedroom_64_batch_64_lr_5e-5_wavelets_hh_0
+--save_interval 20000 --wandb True --wandb_project consistency-models --wandb_experiment_name CM_lsun_bedroom_64_batch_64_lr_5e-5_wavelets_hh_hl_lh_0 \
+--ckpts_dir /opt/consistency_models/ckpts/64_dist_target_comp_hh_hl_lh_0
 
 #CMD sleep infinity
 #

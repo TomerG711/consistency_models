@@ -23,8 +23,21 @@ import os
 
 
 def main():
+    # import torch
+    #
+    # tensor_cpu = torch.tensor([1, 2, 3, 4, 5])
+    #
+    # print("Tensor device before moving to CUDA:", tensor_cpu.device)
+    #
+    # if torch.cuda.is_available():
+    #     device = torch.device("cuda")
+    #     tensor_cuda = tensor_cpu.to(device)
+    #     print("Tensor device after moving to CUDA:", tensor_cuda.device)
+    # else:
+    #     print("CUDA is not available. Cannot move tensor to CUDA.")
+    # return
     args = create_argparser().parse_args()
-    os.environ["CKPTS_DIR"] = "/opt/consistency_models/ckpts/64_clean"
+    os.environ["CKPTS_DIR"] = args.ckpts_dir
     # if args.wandb:
     #     import wandb
     #     name=f"CM_"
@@ -186,7 +199,8 @@ def create_argparser():
         fp16_scale_growth=1e-3,
         wandb=False,
         wandb_project="",
-        wandb_experiment_name=""
+        wandb_experiment_name="",
+        ckpts_dir=""
     )
     defaults.update(model_and_diffusion_defaults())
     defaults.update(cm_train_defaults())
@@ -197,3 +211,4 @@ def create_argparser():
 
 if __name__ == "__main__":
     main()
+
