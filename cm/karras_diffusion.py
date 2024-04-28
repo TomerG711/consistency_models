@@ -65,7 +65,7 @@ def calc_wavelets(image, save_image=False):
     # print(combined_image.shape)
     if save_image:
         if i % 1000 == 0:
-            save_as_png(combined_image, f"/opt/consistency_models/wavelets_samples/dist_target_comp/hh_hl_lh_0/combined_wavelets_{i}.png")
+            save_as_png(combined_image, f"/opt/consistency_models/wavelets_samples/dist_target_comp/hh_10/combined_wavelets_{i}.png")
         i += 1
     return ll, lh, hl, hh
 
@@ -253,8 +253,10 @@ class KarrasDenoiser:
         distiller_target = target_denoise_fn(x_t2, t2)
         distiller_target = distiller_target.detach()
 
-        dis_wave_loss = th.stack(calc_wavelets((distiller + 1) / 2.0, True)[1:4])
-        target_wave_loss = th.stack(calc_wavelets((distiller_target + 1) / 2.0, False)[1:4])
+        # dis_wave_loss = th.stack(calc_wavelets((distiller + 1) / 2.0, True)[1:4])
+        dis_wave_loss = calc_wavelets((distiller + 1) / 2.0, True)[3]
+        # target_wave_loss = th.stack(calc_wavelets((distiller_target + 1) / 2.0, False)[1:4])
+        target_wave_loss = calc_wavelets((distiller_target + 1) / 2.0, False)[3]
 
         wave_l1_loss = F.l1_loss(dis_wave_loss, target_wave_loss)
 
