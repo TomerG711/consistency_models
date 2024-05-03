@@ -518,7 +518,7 @@ class CMTrainLoop(TrainLoop):
             log_loss_dict(
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
-            final_loss = lpips  #+ wavelets * 0.00001  # TODO: Make this hyper-param
+            final_loss = lpips  + wavelets * 0.00001  # TODO: Make this hyper-param
             if self.wandb:
                 wandb.log({"lpips": lpips, "wavelets": wavelets, "loss": final_loss})
 
