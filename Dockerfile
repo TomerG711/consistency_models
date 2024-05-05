@@ -1,40 +1,41 @@
 #FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 #
+FROM nvcr.io/nvidia/pytorch:21.04-py3
 
-#ENV DEBIAN_FRONTEND=noninteractive PIP_PREFER_BINARY=1
+ENV DEBIAN_FRONTEND=noninteractive PIP_PREFER_BINARY=1
 #
-#RUN apt-get update && apt-get install -y --no-install-recommends \
-#    libgl1-mesa-dev libopenmpi-dev git wget \
-#    python3 python3-dev python3-pip python3-setuptools python3-wheel \
-#    && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1-mesa-dev libopenmpi-dev git wget \
+    python3 python3-dev python3-pip python3-setuptools python3-wheel \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 #
-#RUN echo "export PATH=/usr/local/cuda/bin:$PATH" >> /etc/bash.bashrc \
-#    && echo "export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> /etc/bash.bashrc
+RUN echo "export PATH=/usr/local/cuda/bin:$PATH" >> /etc/bash.bashrc \
+    && echo "export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> /etc/bash.bashrc
 #
-#RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel packaging mpi4py \
-#    && pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu118 \
-#    && pip3 install flash-attn==0.2.8 \
-#    && pip3 install lmdb
+RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel packaging mpi4py \
+    && pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu118 \
+    && pip3 install flash-attn==0.2.8 \
+    && pip3 install lmdb
 #
 ##WORKDIR /home/
 ##RUN pip3 install -e git+https://github.com/openai/consistency_models.git@main#egg=consistency_models \
 ##    && ln -s /usr/bin/python3 /usr/bin/python
 #
-#RUN ln -s /usr/bin/python3 /usr/bin/python
+RUN ln -s /usr/bin/python3 /usr/bin/python
 
 #FOR SHORTER DOCKERFILE:
-FROM cm:latest
+#FROM cm:latest
 
 #RUN apt-get -y update
 #RUN apt-get -y install unzip
 
-#RUN pip3 install wandb
+RUN pip3 install wandb
 #
-#RUN pip3 install "blobfile>=1.0.5"
-#RUN pip3 install scipy
-#RUN pip3 install piq==0.7.0
-#RUN pip3 install lmdb
-#RUN pip3 install PyWavelets
+RUN pip3 install "blobfile>=1.0.5"
+RUN pip3 install scipy
+RUN pip3 install piq==0.7.0
+RUN pip3 install lmdb
+RUN pip3 install PyWavelets
 COPY . /opt/consistency_models
 
 WORKDIR /opt/consistency_models
@@ -52,8 +53,8 @@ CMD mpiexec --allow-run-as-root -n 1 python cm_train.py --training_mode consiste
 --ema_rate 0.9999,0.99994,0.9999432189950708 --global_batch_size 64 --image_size 64 --lr 0.00005 --num_channels 256 \
 --num_head_channels 64 --num_res_blocks 2 --resblock_updown True --schedule_sampler uniform --use_fp16 True \
 --weight_decay 0.0 --weight_schedule uniform --data_dir /opt/consistency_models/lsun/lsun_bedroom_processed_64 --log_interval 1 \
---save_interval 20000 --wandb True --wandb_project consistency-models --wandb_experiment_name CM_lsun_bedroom_64_batch_64_lr_5e-5_wavelets_dist_l1_hh_hl_lh_0.00001 \
---ckpts_dir /opt/consistency_models/ckpts/64_dist_l1_hh_hl_lh_0.00001
+--save_interval 20000 --wandb True --wandb_project consistency-models --wandb_experiment_name CM_lsun_bedroom_64_batch_64_lr_5e-5_wavelets_hh_10_delayed_30k \
+--ckpts_dir /opt/consistency_models/ckpts/64_dist_target_comp_hh_10_delayed_30k
 
 #CMD sleep infinity
 #

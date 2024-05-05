@@ -518,7 +518,10 @@ class CMTrainLoop(TrainLoop):
             log_loss_dict(
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
-            final_loss = lpips  + wavelets * 0.00001  # TODO: Make this hyper-param
+            if self.step >= 30_000:
+                final_loss = lpips + wavelets * 10  # TODO: Make this hyper-param
+            else:
+                final_loss = lpips
             if self.wandb:
                 wandb.log({"lpips": lpips, "wavelets": wavelets, "loss": final_loss})
 
