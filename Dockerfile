@@ -1,6 +1,6 @@
-#FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 #
-FROM nvcr.io/nvidia/pytorch:21.04-py3
+#FROM nvcr.io/nvidia/pytorch:21.04-py3
 
 ENV DEBIAN_FRONTEND=noninteractive PIP_PREFER_BINARY=1
 #
@@ -18,10 +18,10 @@ RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel packaging mpi4py 
     && pip3 install lmdb
 #
 ##WORKDIR /home/
-##RUN pip3 install -e git+https://github.com/openai/consistency_models.git@main#egg=consistency_models \
-##    && ln -s /usr/bin/python3 /usr/bin/python
+RUN pip3 install -e git+https://github.com/openai/consistency_models.git@main#egg=consistency_models \
+    && ln -s /usr/bin/python3 /usr/bin/python
 #
-RUN ln -s /usr/bin/python3 /usr/bin/python
+#RUN ln -s /usr/bin/python3 /usr/bin/python
 
 #FOR SHORTER DOCKERFILE:
 #FROM cm:latest
@@ -31,11 +31,11 @@ RUN ln -s /usr/bin/python3 /usr/bin/python
 
 RUN pip3 install wandb
 #
-RUN pip3 install "blobfile>=1.0.5"
-RUN pip3 install scipy
-RUN pip3 install piq==0.7.0
-RUN pip3 install lmdb
-RUN pip3 install PyWavelets
+#RUN pip3 install "blobfile>=1.0.5"
+#RUN pip3 install scipy
+#RUN pip3 install piq==0.7.0
+#RUN pip3 install lmdb
+#RUN pip3 install PyWavelets
 COPY . /opt/consistency_models
 
 WORKDIR /opt/consistency_models
