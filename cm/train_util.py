@@ -513,18 +513,25 @@ class CMTrainLoop(TrainLoop):
                 )
 
             lpips = (losses["loss"] * weights).mean()
-            wavelets = losses["wavelets"]  # Mean calculated by default
+            # wavelets = losses["wavelets"]  # Mean calculated by default
+            wavelets_hh = losses["wavelets_hh"]  # Mean calculated by default
+            wavelets_hl_lh = losses["wavelets_hl_lh"]  # Mean calculated by default
 
             log_loss_dict(
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
-            # if self.step >= 30_000:
-            #     final_loss = lpips + wavelets * 1000  # TODO: Make this hyper-param
-            # else:
-            #     final_loss = lpips
-            final_loss = lpips + wavelets * 100000  # TODO: Make this hyper-param
+            if self.step >= 30_000:
+                final_loss = lpips + wavelets_hl_lh * 10000 + wavelets_hh * 100000  # TODO: Make this hyper-param
+            else:
+                final_loss = lpips
+            # final_loss = lpips + wavelets * 100000  # TODO: Make this hyper-param
             if self.wandb:
-                wandb.log({"lpips": lpips, "wavelets": wavelets, "loss": final_loss})
+                # wandb.log({"lpips": lpips, "wavelets": wavelets, "loss": final_loss})
+                wandb.log({
+                    "lpips": lpips,
+                    "wavelets_hh": wavelets_hh,
+                    "wavelets_hl_lh": wavelets_hl_lh,
+                    "loss": final_loss})
 
             self.mp_trainer.backward(final_loss)
 

@@ -48,7 +48,7 @@ def calc_wavelets(image, save_image=False):
     if save_image:
         if i % 1000 == 0:
             save_as_png(combined_image, f"/opt/consistency_models/wavelets_samples/"
-                                        f"dist_target_comp/hh_100000/combined_wavelets_{i}.png")
+                                        f"dist_target_comp/hh_100000_hl_lh_10000_delayed_30k/combined_wavelets_{i}.png")
         i += 1
     return ll, lh, hl, hh
 
@@ -236,12 +236,18 @@ class KarrasDenoiser:
         distiller_target = target_denoise_fn(x_t2, t2)
         distiller_target = distiller_target.detach()
 
+        dist_wavelets = calc_wavelets((distiller + 1) / 2.0, True)
         # dis_wave_loss = th.stack(calc_wavelets((distiller + 1) / 2.0, True)[1:4])
-        dis_wave_loss = calc_wavelets((distiller + 1) / 2.0, True)[3]
+        # dis_wave_loss = calc_wavelets((distiller + 1) / 2.0, True)[3]
         # target_wave_loss = th.stack(calc_wavelets((distiller_target + 1) / 2.0, False)[1:4])
-        target_wave_loss = calc_wavelets((distiller_target + 1) / 2.0, False)[3]
+        target_wavelets = calc_wavelets((distiller_target + 1) / 2.0, False)
+        # target_wave_loss = calc_wavelets((distiller_target + 1) / 2.0, False)[3]
         # wave_l1_loss = th.norm(dis_wave_loss, 1)
-        wave_l1_loss = F.l1_loss(dis_wave_loss, target_wave_loss)
+        # wave_l1_loss = F.l1_loss(dis_wave_loss, target_wave_loss)
+        # wave_l1_loss = F.l1_loss(dis_wave_loss, target_wave_loss)
+        wave_hl_lh_l1_loss = F.l1_loss(th.stack(dist_wavelets[1:3]), th.stack(target_wavelets[1:3]))
+        wave_hh_l1_loss = F.l1_loss(dist_wavelets[3], target_wavelets[3])
+
 
         snrs = self.get_snr(t)
         weights = get_weightings(self.weight_schedule, snrs, self.sigma_data)
@@ -278,7 +284,9 @@ class KarrasDenoiser:
             raise ValueError(f"Unknown loss norm {self.loss_norm}")
         # logger.logkv_mean()
         terms = {}
-        terms["wavelets"] = wave_l1_loss
+        # terms["wavelets"] = wave_l1_loss
+        terms["wavelets_hl_lh"] = wave_hl_lh_l1_loss
+        terms["wavelets_hh"] = wave_hh_l1_loss
         terms["loss"] = loss
 
         return terms
