@@ -48,7 +48,7 @@ def calc_wavelets(image, save_image=False):
     if save_image:
         if i % 1000 == 0:
             save_as_png(combined_image, f"/opt/consistency_models/wavelets_samples/"
-                                        f"dist_target_comp/hh_100000_hl_lh_10000_delayed_30k/combined_wavelets_{i}.png")
+                                        f"dist_target_comp/hh_100000_decrease_every_10000/combined_wavelets_{i}.png")
         i += 1
     return ll, lh, hl, hh
 
