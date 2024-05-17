@@ -21,10 +21,13 @@ def normalize_to_zero_one(arr):
     max_val = arr.max()
     normalized_arr = (arr - min_val) / (max_val - min_val)
     return normalized_arr
+
+
 def save_as_png(image, filename):
     image_data = normalize_to_zero_one(image)
     img = Image.fromarray((image_data * 255).astype(np.uint8).transpose((1,2,0)))
     img.save(filename)
+
 
 def calc_wavelets(image, save_image=False):
     global i
@@ -48,7 +51,7 @@ def calc_wavelets(image, save_image=False):
     if save_image:
         if i % 1000 == 0:
             save_as_png(combined_image, f"/opt/consistency_models/wavelets_samples/"
-                                        f"dist_target_comp/hh_100000_decrease_every_10000/combined_wavelets_{i}.png")
+                                        f"dist_target_comp/256/hh_0.5_hl_0.1_lh_0.1_delayed_20k/combined_wavelets_{i}.png")
         i += 1
     return ll, lh, hl, hh
 
@@ -245,9 +248,10 @@ class KarrasDenoiser:
         # wave_l1_loss = th.norm(dis_wave_loss, 1)
         # wave_l1_loss = F.l1_loss(dis_wave_loss, target_wave_loss)
         # wave_l1_loss = F.l1_loss(dis_wave_loss, target_wave_loss)
-        wave_hl_lh_l1_loss = F.l1_loss(th.stack(dist_wavelets[1:3]), th.stack(target_wavelets[1:3]))
+        wave_lh_l1_loss = F.l1_loss(dist_wavelets[1], target_wavelets[1])
+        wave_hl_l1_loss = F.l1_loss(dist_wavelets[2], target_wavelets[2])
         wave_hh_l1_loss = F.l1_loss(dist_wavelets[3], target_wavelets[3])
-
+        # ll, lh, hl, hh
 
         snrs = self.get_snr(t)
         weights = get_weightings(self.weight_schedule, snrs, self.sigma_data)
@@ -285,7 +289,9 @@ class KarrasDenoiser:
         # logger.logkv_mean()
         terms = {}
         # terms["wavelets"] = wave_l1_loss
-        terms["wavelets_hl_lh"] = wave_hl_lh_l1_loss
+        # ll, lh, hl, hh
+        terms["wavelets_lh"] = wave_lh_l1_loss
+        terms["wavelets_hl"] = wave_hl_l1_loss
         terms["wavelets_hh"] = wave_hh_l1_loss
         terms["loss"] = loss
 

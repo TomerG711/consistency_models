@@ -171,7 +171,7 @@ class Evaluator:
         self, npz_path: str, activations: Tuple[np.ndarray, np.ndarray]
     ) -> Tuple[FIDStatistics, FIDStatistics]:
         obj = np.load(npz_path)
-        print(list(obj.keys()))
+        # print(list(obj.keys()))
         if "mu" in list(obj.keys()):
             return FIDStatistics(obj["mu"], obj["sigma"]), FIDStatistics(
                 obj["mu_s"], obj["sigma_s"]

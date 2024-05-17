@@ -23,7 +23,7 @@ from cm.karras_diffusion import karras_sample
 
 
 def main():
-    os.environ["CKPTS_DIR"] = "/opt/consistency_models/samples/64_lr_5e-5_wavelets_hh_100000_decrease_every_1000_ckpt_100k_onestep"
+    os.environ["CKPTS_DIR"] = "/opt/consistency_models/samples/256_wavelets_hh_0.5_ckpt_80k_onestep"
     args = create_argparser().parse_args()
 
     dist_util.setup_dist()

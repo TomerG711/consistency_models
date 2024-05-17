@@ -24,9 +24,9 @@
 #RUN ln -s /usr/bin/python3 /usr/bin/python
 
 #FOR SHORTER DOCKERFILE:
-#FROM cm-base:latest
+FROM cm-base:latest
 #FOR SHORTER TF DOCKERFILE:
-FROM cm-tf-base:latest
+#FROM cm-tf-base:latest
 #RUN apt-get -y update
 #RUN apt-get -y install unzip
 
@@ -51,21 +51,21 @@ WORKDIR /opt/consistency_models
 #CMD unzip /opt/consistency_models/lsun/archive.zip -d /opt/consistency_models/lsun/lsun_bedroom
 #CMD sleep infinity
 
-#CMD mpiexec --allow-run-as-root -n 1 python cm_train.py --training_mode consistency_training --target_ema_mode adaptive --start_ema 0.95 \
-#--scale_mode progressive --start_scales 2 --end_scales 150 --total_training_steps 1000000 --loss_norm lpips \
-#--lr_anneal_steps 0 --attention_resolutions 32,16,8 --class_cond False --use_scale_shift_norm False --dropout 0.0  \
-#--ema_rate 0.9999,0.99994,0.9999432189950708 --global_batch_size 64 --image_size 64 --lr 0.00005 --num_channels 256 \
-#--num_head_channels 64 --num_res_blocks 2 --resblock_updown True --schedule_sampler uniform --use_fp16 True \
-#--weight_decay 0.0 --weight_schedule uniform --data_dir /opt/consistency_models/lsun/lsun_bedroom_processed_64 --log_interval 1 \
-#--save_interval 20000 --wandb True --wandb_project consistency-models --wandb_experiment_name CM_lsun_bedroom_64_batch_64_lr_5e-5_wavelets_hh_100000_decrease_every_10000 \
-#--ckpts_dir /opt/consistency_models/ckpts/64_dist_target_comp_hh_100000_decrease_every_10000
+CMD mpiexec --allow-run-as-root -n 1 python cm_train.py --training_mode consistency_training --target_ema_mode adaptive --start_ema 0.95 \
+--scale_mode progressive --start_scales 2 --end_scales 150 --total_training_steps 1000000 --loss_norm lpips \
+--lr_anneal_steps 0 --attention_resolutions 32,16,8 --class_cond False --use_scale_shift_norm False --dropout 0.0  \
+--ema_rate 0.9999,0.99994,0.9999432189950708 --global_batch_size 8 --image_size 256 --lr 0.00005 --num_channels 256 \
+--num_head_channels 64 --num_res_blocks 2 --resblock_updown True --schedule_sampler uniform --use_fp16 True \
+--weight_decay 0.0 --weight_schedule uniform --data_dir /opt/consistency_models/lsun/lsun_bedroom_processed --log_interval 1 \
+--save_interval 20000 --wandb True --wandb_project consistency-models-256 --wandb_experiment_name CM_lsun_bedroom_256_batch_8_wavelets_hh_0.5_hl_0.1_lh_0.1_delayed_20k \
+--ckpts_dir /opt/consistency_models/ckpts/256_dist_target_comp_hh_0.5_hl_0.1_lh_0.1_delayed_20k
 
 #CMD sleep infinity
 #
-#CMD mpiexec --allow-run-as-root -n 1 python image_sample.py --batch_size 32 --generator determ-indiv --training_mode consistency_training \
-#--sampler onestep --model_path /opt/consistency_models/ckpts/clean_64/target_model160000.pt --attention_resolutions 32,16,8 --class_cond False \
-# --use_scale_shift_norm False --dropout 0.0 --image_size 64 --num_channels 256 --num_head_channels 64 \
-#  --num_res_blocks 2 --num_samples 100 --resblock_updown True --use_fp16 True --weight_schedule uniform
+#CMD mpiexec --allow-run-as-root -n 1 python image_sample.py --batch_size 8 --generator determ-indiv --training_mode consistency_training \
+#--sampler onestep --model_path /opt/consistency_models/ckpts/256_dist_target_comp_hh_0.5/target_model080000.pt --attention_resolutions 32,16,8 --class_cond False \
+# --use_scale_shift_norm False --dropout 0.0 --image_size 256 --num_channels 256 --num_head_channels 64 \
+#  --num_res_blocks 2 --num_samples 50000 --resblock_updown True --use_fp16 True --weight_schedule uniform
 #  --sampler multistep --ts 0,67,150 --steps 151
 
 #CMD mpiexec --allow-run-as-root -n 1 python image_sample.py --batch_size 64 --generator determ-indiv --training_mode consistency_training \
@@ -82,9 +82,9 @@ WORKDIR /opt/consistency_models
 #CMD unzip -v /opt/consistency_models/lsun/full_bedroom_dataset/bedroom_train_lmdb.zip
 #CMD sleep infinity
 
-CMD python /opt/consistency_models/evaluations/evaluator.py \
-/opt/consistency_models/samples/lsun_bedroom_256_ref_set/VIRTUAL_lsun_bedroom256_resized_to_64_images_only.npz \
-/opt/consistency_models/samples/64_lr_5e-5_wavelets_hh_0_ckpt_100k_onestep/samples_50000x64x64x3.npz
+#CMD python /opt/consistency_models/evaluations/evaluator.py \
+#/opt/consistency_models/samples/lsun_bedroom_256_ref_set/VIRTUAL_lsun_bedroom256.npz \
+#/opt/consistency_models/samples/256_wavelets_hh_0.5_ckpt_80k_onestep/samples_50000x256x256x3.npz
 #/opt/consistency_models/samples/64_lr_5e-5_wavelets_hh_100000_decrease_every_1000_ckpt_100k_onestep/samples_50000x64x64x3.npz
 
 #CMD python /opt/consistency_models/convert_ref_batch_to_npz.py
