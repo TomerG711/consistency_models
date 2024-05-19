@@ -15,7 +15,10 @@ from .nn import mean_flat, append_dims, append_zero
 from .random_util import get_generator
 from PIL import Image
 from . import logger
-i=0
+
+i = 0
+
+
 def normalize_to_zero_one(arr):
     min_val = arr.min()
     max_val = arr.max()
@@ -25,7 +28,7 @@ def normalize_to_zero_one(arr):
 
 def save_as_png(image, filename):
     image_data = normalize_to_zero_one(image)
-    img = Image.fromarray((image_data * 255).astype(np.uint8).transpose((1,2,0)))
+    img = Image.fromarray((image_data * 255).astype(np.uint8).transpose((1, 2, 0)))
     img.save(filename)
 
 
@@ -51,7 +54,7 @@ def calc_wavelets(image, save_image=False):
     if save_image:
         if i % 1000 == 0:
             save_as_png(combined_image, f"/opt/consistency_models/wavelets_samples/"
-                                        f"dist_target_comp/256/hh_0.5_hl_0.1_lh_0.1_delayed_20k/combined_wavelets_{i}.png")
+                                        f"dist_target_comp/256/hh_0.1_hl_0.01_lh_0.01_weighted_loss/combined_wavelets_{i}.png")
         i += 1
     return ll, lh, hl, hh
 
@@ -283,7 +286,7 @@ class KarrasDenoiser:
                         (distiller_target + 1) / 2.0,
                     )
                     * weights
-            )
+            ).mean()
         else:
             raise ValueError(f"Unknown loss norm {self.loss_norm}")
         # logger.logkv_mean()
@@ -293,7 +296,16 @@ class KarrasDenoiser:
         terms["wavelets_lh"] = wave_lh_l1_loss
         terms["wavelets_hl"] = wave_hl_l1_loss
         terms["wavelets_hh"] = wave_hh_l1_loss
-        terms["loss"] = loss
+
+        # FOR NEW LOSS
+        terms["lpips"] = loss
+        final_loss =\
+            loss + \
+            wave_hh_l1_loss * weights * 0.1 + \
+            wave_hl_l1_loss * weights * 0.01 + \
+            wave_lh_l1_loss * weights * 0.01  # TODO: Make this hyper-param
+
+        terms["loss"] = final_loss
 
         return terms
 
