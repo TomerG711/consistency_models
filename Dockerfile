@@ -24,9 +24,9 @@
 #RUN ln -s /usr/bin/python3 /usr/bin/python
 
 #FOR SHORTER DOCKERFILE:
-FROM cm-base:latest
+#FROM cm-base:latest
 #FOR SHORTER TF DOCKERFILE:
-#FROM cm-tf-base:latest
+FROM cm-tf-base:latest
 #RUN apt-get -y update
 #RUN apt-get -y install unzip
 
@@ -57,13 +57,13 @@ CMD mpiexec --allow-run-as-root -n 1 python cm_train.py --training_mode consiste
 --ema_rate 0.9999,0.99994,0.9999432189950708 --global_batch_size 8 --image_size 256 --lr 0.00005 --num_channels 256 \
 --num_head_channels 64 --num_res_blocks 2 --resblock_updown True --schedule_sampler uniform --use_fp16 True \
 --weight_decay 0.0 --weight_schedule uniform --data_dir /opt/consistency_models/lsun/lsun_bedroom_processed --log_interval 1 \
---save_interval 20000 --wandb True --wandb_project consistency-models-256 --wandb_experiment_name CM_lsun_bedroom_256_batch_8_wavelets_hh_0.1_hl_0.01_lh_0.01_weighted_loss \
---ckpts_dir /opt/consistency_models/ckpts/256_dist_target_comp_hh_0.1_hl_0.01_lh_0.01_weighted_loss
+--save_interval 20000 --wandb True --wandb_project consistency-models-256 --wandb_experiment_name CM_lsun_bedroom_256_batch_8_wavelets_hh_0.01_hl_0.001_lh_0.001 \
+--ckpts_dir /opt/consistency_models/ckpts/256_dist_target_comp_hh_0.01_hl_0.001_lh_0.001
 
 #CMD sleep infinity
 #
 #CMD mpiexec --allow-run-as-root -n 1 python image_sample.py --batch_size 8 --generator determ-indiv --training_mode consistency_training \
-#--sampler onestep --model_path /opt/consistency_models/ckpts/256_dist_target_comp_hh_0.5_hl_0.1_lh_0.1_delayed_20k/target_model080000.pt --attention_resolutions 32,16,8 --class_cond False \
+#--sampler onestep --model_path /opt/consistency_models/ckpts/256_dist_target_comp_hh_1.0_hl_0.5_lh_0.5/target_model080000.pt --attention_resolutions 32,16,8 --class_cond False \
 # --use_scale_shift_norm False --dropout 0.0 --image_size 256 --num_channels 256 --num_head_channels 64 \
 #  --num_res_blocks 2 --num_samples 50000 --resblock_updown True --use_fp16 True --weight_schedule uniform
 #  --sampler multistep --ts 0,67,150 --steps 151
@@ -84,7 +84,7 @@ CMD mpiexec --allow-run-as-root -n 1 python cm_train.py --training_mode consiste
 
 #CMD python /opt/consistency_models/evaluations/evaluator.py \
 #/opt/consistency_models/samples/lsun_bedroom_256_ref_set/VIRTUAL_lsun_bedroom256.npz \
-#/opt/consistency_models/samples/256_wavelets_hh_0.5_hl_0.1_lh_0.1_delayed_20k_ckpt_80k_onestep/samples_50000x256x256x3.npz
+#/opt/consistency_models/samples/256_wavelets_hh_1.0_hl_0.5_lh_0.5_ckpt_80k_onestep/samples_50000x256x256x3.npz
 #/opt/consistency_models/samples/64_lr_5e-5_wavelets_hh_100000_decrease_every_1000_ckpt_100k_onestep/samples_50000x64x64x3.npz
 
 #CMD python /opt/consistency_models/convert_ref_batch_to_npz.py
