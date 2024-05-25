@@ -265,7 +265,7 @@ class KarrasDenoiser:
         # print(dist_wavelets[3])
         # print(th.norm(dist_wavelets[3], 1).shape)
         # print(th.norm(dist_wavelets[3], 1))
-        wave_hh_l1_loss = th.norm(dist_wavelets[3], 1) * 1e-5
+        wave_hh_l1_loss = th.norm(dist_wavelets[3], 1) * 1e-8
 
         snrs = self.get_snr(t)
         weights = get_weightings(self.weight_schedule, snrs, self.sigma_data)
