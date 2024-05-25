@@ -22,8 +22,8 @@ from cm.random_util import get_generator
 from cm.karras_diffusion import karras_sample
 
 
-def main():
-    os.environ["CKPTS_DIR"] = "/opt/consistency_models/samples/256_wavelets_hh_1.0_hl_0.5_lh_0.5_ckpt_80k_onestep"
+def main():# 256_dist_target_comp_hh_0.1_hl_0.1_lh_0.1_ll_0.1
+    os.environ["CKPTS_DIR"] = "/opt/consistency_models/samples/256_wavelets_hh_0.1_hl_0.1_lh_0.1_ll_0.1_ckpt_80k_onestep"
     args = create_argparser().parse_args()
 
     dist_util.setup_dist()

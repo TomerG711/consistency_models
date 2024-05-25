@@ -54,7 +54,7 @@ def calc_wavelets(image, save_image=False):
     if save_image:
         if i % 1000 == 0:
             save_as_png(combined_image, f"/opt/consistency_models/wavelets_samples/"
-                                        f"dist_target_comp/256/hh_0.01_hl_0.001_lh_0.001/combined_wavelets_{i}.png")
+                                        f"dist_l1_norm/256/hh_1e-5/combined_wavelets_{i}.png")
         i += 1
     return ll, lh, hl, hh
 
@@ -246,16 +246,26 @@ class KarrasDenoiser:
         # dis_wave_loss = th.stack(calc_wavelets((distiller + 1) / 2.0, True)[1:4])
         # dis_wave_loss = calc_wavelets((distiller + 1) / 2.0, True)[3]
         # target_wave_loss = th.stack(calc_wavelets((distiller_target + 1) / 2.0, False)[1:4])
-        target_wavelets = calc_wavelets((distiller_target + 1) / 2.0, False)
+        # target_wavelets = calc_wavelets((distiller_target + 1) / 2.0, False)
         # target_wave_loss = calc_wavelets((distiller_target + 1) / 2.0, False)[3]
         # wave_l1_loss = th.norm(dis_wave_loss, 1)
         # wave_l1_loss = F.l1_loss(dis_wave_loss, target_wave_loss)
         # wave_l1_loss = F.l1_loss(dis_wave_loss, target_wave_loss)
-        wave_ll_l1_loss = F.l1_loss(dist_wavelets[0], target_wavelets[0])
-        wave_lh_l1_loss = F.l1_loss(dist_wavelets[1], target_wavelets[1])
-        wave_hl_l1_loss = F.l1_loss(dist_wavelets[2], target_wavelets[2])
-        wave_hh_l1_loss = F.l1_loss(dist_wavelets[3], target_wavelets[3])
-        # ll, lh, hl, hh
+
+        # For L1 loss
+        # wave_ll_l1_loss = F.l1_loss(dist_wavelets[0], target_wavelets[0])
+        # wave_lh_l1_loss = F.l1_loss(dist_wavelets[1], target_wavelets[1])
+        # wave_hl_l1_loss = F.l1_loss(dist_wavelets[2], target_wavelets[2])
+        # wave_hh_l1_loss = F.l1_loss(dist_wavelets[3], target_wavelets[3])
+
+        # For L1 norm
+        # wave_ll_l1_loss = th.norm(dist_wavelets[0], 1)
+        # wave_lh_l1_loss = th.norm(dist_wavelets[1], 1)
+        # wave_hl_l1_loss = th.norm(dist_wavelets[2], 1)
+        # print(dist_wavelets[3])
+        # print(th.norm(dist_wavelets[3], 1).shape)
+        # print(th.norm(dist_wavelets[3], 1))
+        wave_hh_l1_loss = th.norm(dist_wavelets[3], 1) * 1e-5
 
         snrs = self.get_snr(t)
         weights = get_weightings(self.weight_schedule, snrs, self.sigma_data)
@@ -294,9 +304,9 @@ class KarrasDenoiser:
         terms = {}
         # terms["wavelets"] = wave_l1_loss
         # ll, lh, hl, hh
-        terms["wavelets_ll"] = wave_ll_l1_loss
-        terms["wavelets_lh"] = wave_lh_l1_loss
-        terms["wavelets_hl"] = wave_hl_l1_loss
+        # terms["wavelets_ll"] = wave_ll_l1_loss
+        # terms["wavelets_lh"] = wave_lh_l1_loss
+        # terms["wavelets_hl"] = wave_hl_l1_loss
         terms["wavelets_hh"] = wave_hh_l1_loss
 
         terms["loss"] = loss

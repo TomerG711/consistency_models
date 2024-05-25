@@ -23,32 +23,8 @@ import os
 
 
 def main():
-    # import torch
-    #
-    # tensor_cpu = torch.tensor([1, 2, 3, 4, 5])
-    #
-    # print("Tensor device before moving to CUDA:", tensor_cpu.device)
-    #
-    # if torch.cuda.is_available():
-    #     device = torch.device("cuda")
-    #     tensor_cuda = tensor_cpu.to(device)
-    #     print("Tensor device after moving to CUDA:", tensor_cuda.device)
-    # else:
-    #     print("CUDA is not available. Cannot move tensor to CUDA.")
-    # return
     args = create_argparser().parse_args()
     os.environ["CKPTS_DIR"] = args.ckpts_dir
-    # if args.wandb:
-    #     import wandb
-    #     name=f"CM_"
-    #     wandb.init(
-    #         # project="IDPG-motion-blur-imagenet50-sy0.1",
-    #         project="CM-lsun-bedroom",
-    #         entity="tomergarber",
-    #         name=name,
-    #         settings=wandb.Settings(start_method="fork"),
-    #     )
-    #     wandb.config.update(args)
     dist_util.setup_dist()
     logger.configure()
 
