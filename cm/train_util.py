@@ -528,7 +528,7 @@ class CMTrainLoop(TrainLoop):
             #     final_loss = lpips
             # wavelets_reg = 0.5
             # wavelets_reg /= (self.step % 10000 + 1)
-            final_loss = lpips + wavelets_hh + wavelets_hl + wavelets_lh  # TODO: Make this hyper-param
+            final_loss = lpips + wavelets_hh #+ wavelets_hl + wavelets_lh  # TODO: Make this hyper-param
             if self.wandb:
                 # wandb.log({"lpips": lpips, "wavelets": wavelets, "loss": final_loss})
                 wandb.log({

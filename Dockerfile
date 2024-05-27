@@ -57,22 +57,17 @@ CMD mpiexec --allow-run-as-root -n 1 python cm_train.py --training_mode consiste
 --ema_rate 0.9999,0.99994,0.9999432189950708 --global_batch_size 8 --image_size 256 --lr 0.00005 --num_channels 256 \
 --num_head_channels 64 --num_res_blocks 2 --resblock_updown True --schedule_sampler uniform --use_fp16 True \
 --weight_decay 0.0 --weight_schedule uniform --data_dir /opt/consistency_models/lsun/lsun_bedroom_processed --log_interval 1 \
---save_interval 20000 --wandb True --wandb_project consistency-models-256 --wandb_experiment_name CM_lsun_bedroom_256_batch_8_wavelets_dist_l1_norm_hh_1e-6_hl_1e-8_lh_1e-8 \
---ckpts_dir /opt/consistency_models/ckpts/256_dist_l1_norm_hh_1e-6_hl_1e-8_lh_1e-8
+--save_interval 20000 --wandb True --wandb_project consistency-models-256 --wandb_experiment_name CM_lsun_bedroom_256_batch_8_wavelets_dist_l1_norm_hh_1e-6_hl_1e-7_lh_1e-7 \
+--ckpts_dir /opt/consistency_models/ckpts/256_dist_l1_norm_hh_1e-6_hl_1e-7_lh_1e-7
 
 #CMD sleep infinity
 #
 #CMD mpiexec --allow-run-as-root -n 1 python image_sample.py --batch_size 8 --generator determ-indiv --training_mode consistency_training \
-#--sampler onestep --model_path /opt/consistency_models/ckpts/256_dist_l1_norm_hh_1e-5/target_model080000.pt --attention_resolutions 32,16,8 --class_cond False \
+#--sampler onestep --model_path /opt/consistency_models/ckpts/256_dist_l1_norm_hh_1e-6_delayed_20k/model080000.pt --attention_resolutions 32,16,8 --class_cond False \
 # --use_scale_shift_norm False --dropout 0.0 --image_size 256 --num_channels 256 --num_head_channels 64 \
 #  --num_res_blocks 2 --num_samples 50000 --resblock_updown True --use_fp16 True --weight_schedule uniform
 #  --sampler multistep --ts 0,67,150 --steps 151
 
-#CMD mpiexec --allow-run-as-root -n 1 python image_sample.py --batch_size 64 --generator determ-indiv --training_mode consistency_training \
-#--sampler onestep --model_path /opt/consistency_models/ckpts/64_dist_target_comp_hh_100000_decrease_every_1000/target_model100000.pt --attention_resolutions 32,16,8 --class_cond False \
-# --use_scale_shift_norm False --dropout 0.0 --image_size 64 --num_channels 256 --num_head_channels 64 \
-#  --num_res_blocks 2 --num_samples 50000 --resblock_updown True --use_fp16 True --weight_schedule uniform
-#  --sampler multistep --ts 0,67,150 --steps 151
 
 #CMD python convert_npz.py
 
@@ -84,7 +79,7 @@ CMD mpiexec --allow-run-as-root -n 1 python cm_train.py --training_mode consiste
 
 #CMD python /opt/consistency_models/evaluations/evaluator.py \
 #/opt/consistency_models/samples/lsun_bedroom_256_ref_set/VIRTUAL_lsun_bedroom256.npz \
-#/opt/consistency_models/samples/l1_norm_256_wavelets_hh_1e-5_80k_onestep/samples_50000x256x256x3.npz
+#/opt/consistency_models/samples/l1_norm_256_wavelets_hh_1e-6_delayed_20k_ckpt_model80k_onestep/samples_50000x256x256x3.npz
 #/opt/consistency_models/samples/64_lr_5e-5_wavelets_hh_100000_decrease_every_1000_ckpt_100k_onestep/samples_50000x64x64x3.npz
 
 #CMD python /opt/consistency_models/convert_ref_batch_to_npz.py
