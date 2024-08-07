@@ -15,6 +15,7 @@ from .nn import mean_flat, append_dims, append_zero
 from .random_util import get_generator
 from PIL import Image
 from . import logger
+from torchmetrics.image import TotalVariation
 
 i = 0
 
@@ -260,9 +261,11 @@ class KarrasDenoiser:
 
         # For L1 norm
         # wave_ll_l1_loss = th.norm(dist_wavelets[0], 1)
-        wave_lh_l1_loss = th.norm(dist_wavelets[1], 1) * 1e-7
-        wave_hl_l1_loss = th.norm(dist_wavelets[2], 1) * 1e-7
-        wave_hh_l1_loss = th.norm(dist_wavelets[3], 1) * 1e-6
+        # wave_lh_l1_loss = th.norm(dist_wavelets[1], 1) * 1e-7
+        # wave_hl_l1_loss = th.norm(dist_wavelets[2], 1) * 1e-7
+        # wave_hh_l1_loss = th.norm(dist_wavelets[3], 1) * 1e-6
+        tv = TotalVariation().to(distiller.device)
+        tv_reg = tv(distiller) * 1e-6
         # print(dist_wavelets[3])
         # print(th.norm(dist_wavelets[3], 1).shape)
         # print(th.norm(dist_wavelets[3], 1))
@@ -306,10 +309,10 @@ class KarrasDenoiser:
         # terms["wavelets"] = wave_l1_loss
         # ll, lh, hl, hh
         # terms["wavelets_ll"] = wave_ll_l1_loss
-        terms["wavelets_lh"] = wave_lh_l1_loss
-        terms["wavelets_hl"] = wave_hl_l1_loss
-        terms["wavelets_hh"] = wave_hh_l1_loss
-
+        # terms["wavelets_lh"] = wave_lh_l1_loss
+        # terms["wavelets_hl"] = wave_hl_l1_loss
+        # terms["wavelets_hh"] = wave_hh_l1_loss
+        terms["tv"] = tv_reg
         terms["loss"] = loss
         return terms
 
@@ -1012,7 +1015,7 @@ def iterative_superres(
     t_min_rho = t_min ** (1 / rho)
     s_in = x.new_ones([x.shape[0]])
     images = average_image_patches(images)
-
+    logger.log(f"{images.shape}")
     for i in range(len(ts) - 1):
         t = (t_max_rho + ts[i] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
         x0 = distiller(x, t * s_in)

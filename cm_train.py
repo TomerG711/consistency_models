@@ -176,7 +176,8 @@ def create_argparser():
         wandb=False,
         wandb_project="",
         wandb_experiment_name="",
-        ckpts_dir=""
+        ckpts_dir="",
+
     )
     defaults.update(model_and_diffusion_defaults())
     defaults.update(cm_train_defaults())
