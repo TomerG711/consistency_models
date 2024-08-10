@@ -17,6 +17,7 @@ def load_data(
         deterministic=False,
         random_crop=False,
         random_flip=True,
+        only_once=False
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -39,6 +40,8 @@ def load_data(
     if not data_dir:
         raise ValueError("unspecified data directory")
     all_files = _list_image_files_recursively(data_dir)
+    size = len(all_files)
+    print(f"Got dataset of size: {size}")
     classes = None
     if class_cond:
         # Assume classes are the first part of the filename,
@@ -65,8 +68,13 @@ def load_data(
         loader = DataLoader(
             dataset, batch_size=batch_size, shuffle=True, num_workers=1, drop_last=True
         )
+    # i = 0
     while True:
+        # print(i)
         yield from loader
+        # i += 1
+        if only_once:
+            break
 
 
 def _list_image_files_recursively(data_dir):

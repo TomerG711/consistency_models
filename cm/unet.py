@@ -365,6 +365,7 @@ class QKVFlashAttention(nn.Module):
         qkv = self.rearrange(
             qkv, "b (three h d) s -> b s three h d", three=3, h=self.num_heads
         )
+        qkv = qkv.contiguous() # TOMER
         qkv, _ = self.inner_attn(
             qkv,
             key_padding_mask=key_padding_mask,

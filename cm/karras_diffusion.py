@@ -920,7 +920,7 @@ def iterative_superres(
         steps=40,
         generator=None,
 ):
-    patch_size = 8
+    patch_size = 4
 
     def obtain_orthogonal_matrix():
         vector = np.asarray([1] * patch_size ** 2)
@@ -963,8 +963,15 @@ def iterative_superres(
             .permute(0, 1, 2, 4, 3, 5)
             .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
         )
+
+        # print("@@@@@@@@@@@@@")
+        # print(x0_flatten.shape)
+        # print(x1_flatten.shape)
         x0 = th.einsum("bcnd,de->bcne", x0_flatten, Q)
         x1 = th.einsum("bcnd,de->bcne", x1_flatten, Q)
+        # print("#################")
+        # print(x0.shape)
+        # print(x1.shape)
         x_mix = x0.new_zeros(x0.shape)
         x_mix[..., 0] = x0[..., 0]
         x_mix[..., 1:] = x1[..., 1:]
@@ -997,6 +1004,7 @@ def iterative_superres(
             .permute(0, 1, 2, 4, 3, 5)
             .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
         )
+        # print(f"FLATTEN: {x_flatten.shape}")
         x_flatten[..., :] = x_flatten.mean(dim=-1, keepdim=True)
         return (
             x_flatten.reshape(
@@ -1014,8 +1022,10 @@ def iterative_superres(
     t_max_rho = t_max ** (1 / rho)
     t_min_rho = t_min ** (1 / rho)
     s_in = x.new_ones([x.shape[0]])
+    # print(f"BEFORE: {images.shape}")
     images = average_image_patches(images)
-    logger.log(f"{images.shape}")
+    # print(f"AFTER: {images.shape}")
+    # logger.log(f"{images.shape}")
     for i in range(len(ts) - 1):
         t = (t_max_rho + ts[i] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
         x0 = distiller(x, t * s_in)
