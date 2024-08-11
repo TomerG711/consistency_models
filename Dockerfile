@@ -32,6 +32,7 @@ FROM cm-tf-base:latest
 
 RUN pip3 install wandb
 RUN pip3 install torchmetrics
+RUN pip3 install lpips
 #
 #RUN pip3 install "blobfile>=1.0.5"
 #RUN pip3 install scipy

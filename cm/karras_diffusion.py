@@ -1023,7 +1023,7 @@ def iterative_superres(
     t_min_rho = t_min ** (1 / rho)
     s_in = x.new_ones([x.shape[0]])
     # print(f"BEFORE: {images.shape}")
-    images = average_image_patches(images)
+    # images = average_image_patches(images)
     # print(f"AFTER: {images.shape}")
     # logger.log(f"{images.shape}")
     for i in range(len(ts) - 1):

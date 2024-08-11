@@ -13,7 +13,8 @@ from cm.script_util import (
 import torch
 from PIL import Image
 import numpy as np
-from piq import LPIPS
+# from piq import LPIPS
+import lpips
 
 from image_sample import create_argparser
 from inverse.measurements import get_operator
@@ -83,6 +84,7 @@ def superres_sample_image(
         generator=generator
     )
     x_out_original = x_out.detach().clone()
+    # x_out_original = x_out_original.contiguous()
     # x_out_original = x_out_original.permute(0, 2, 3, 1)
     x_out = ((x_out + 1) * 127.5).clamp(0, 255).to(th.uint8)
     x_out = x_out.permute(0, 2, 3, 1)
@@ -142,7 +144,8 @@ def main():
         in_shape=(1, 3, 256, 256),
         scale_factor=4,
     )
-    lpips_fn = LPIPS(replace_pooling=True, reduction="none")
+    # lpips_fn = LPIPS(replace_pooling=True, reduction="none")
+    lpips_fn = lpips.LPIPS(net='vgg').to(dist_util.dev())
     psnrs = []
     lpipses = []
     for gt, _ in data:
@@ -171,11 +174,12 @@ def main():
         # print(batch)
         # print(x_out_original.shape)
         # print(batch.shape)
+        x_out_original = x_out_original.clamp(-1, 1)
         x_out_original = (x_out_original + 1) / 2
         gt = (gt + 1) / 2
         # x_out_original = x_out_original.permute(0, 3, 1, 2)
         # batch = batch.permute(0, 3, 2, 1)
-
+        # x_out_original = x_out_original.clamp(0, 1)
         # image = image.permute(0, 3, 1, 2)
         # image = image[:, [2, 1, 0], :, :]
 
@@ -183,16 +187,18 @@ def main():
         # print(image.shape)  # BGR
         # print(batch.shape)  # RGB
         # mse = torch.mean(((x_out_original + 1) / 2 - (batch + 1) / 2) ** 2)
+        print(f"X_OUT - MIN: {x_out_original.min()}, MAX: {x_out_original.max()}")
+        print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
         mse = torch.mean((x_out_original - gt) ** 2)
         psnr = 10 * torch.log10(1 / mse)
         # print(psnr)
         # print(x_out_original.shape)
         # print(batch.shape)
-        lpips = lpips_fn(x_out_original, gt)
+        curr_lpips = lpips_fn(x_out_original, gt)
         psnrs.append(psnr.cpu().numpy())
-        lpipses.append(lpips.item())
+        lpipses.append(curr_lpips.item())
         logger.log(f"Image {i} - PSNR: {psnr:.2f}, AVG PSNR: {np.mean(psnrs):.2f}, "
-                   f"LPIPS: {lpips.item():.4f}, AVG LPIPS: {np.mean(lpipses):.4f}")
+                   f"LPIPS: {curr_lpips.item():.4f}, AVG LPIPS: {np.mean(lpipses):.4f}")
         # print(f"{x_out_original.min()}, {x_out_original.max()}")
         # print(f"{gt.min()}, {gt.max()}")
         save_image(x_out_original[0], args.out_dir + f"/{i}_out.png") # BAD
