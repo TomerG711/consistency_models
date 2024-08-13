@@ -10,7 +10,6 @@ from cm.script_util import (
     args_to_dict,
 )
 
-import torch
 from PIL import Image
 import numpy as np
 # from piq import LPIPS
@@ -60,11 +59,12 @@ def superres_sample_image(
         model_kwargs=None,
         generator=None,
         ts=None,
+        gt=None
 ):
     if generator is None:
         generator = get_generator("dummy")
     else:
-        generator = get_generator(generator)
+        generator = get_generator(generator, num_samples=300, seed=1234)
 
     def denoiser(x_t, sigma):
         _, denoised = diffusion.denoise(model, x_t, sigma, **model_kwargs)
@@ -72,16 +72,19 @@ def superres_sample_image(
             denoised = denoised.clamp(-1, 1)
         return denoised
 
+    t_min = 0.002
+    t_max = 80.0
     x_out, images = iterative_superres(
         distiller=denoiser,
         images=image,
-        x=generator.randn(image.shape, device=dist_util.dev()),
+        x=generator.randn(image.shape, device=dist_util.dev())*t_max,
         ts=ts,
-        t_min=0.002,
-        t_max=80.0,
+        t_min=t_min,
+        t_max=t_max,
         rho=diffusion.rho,
         steps=steps,
-        generator=generator
+        generator=generator,
+        gt=gt
     )
     x_out_original = x_out.detach().clone()
     # x_out_original = x_out_original.contiguous()
@@ -153,10 +156,10 @@ def main():
         # logger.log(f"{batch.shape}")
         gt = gt.to(dist_util.dev())
         y = sr_operator.forward(gt)
-        y += th.torch.randn_like(y, device=y.device) * 0.05
+        y += th.randn_like(y, device=y.device) * 0.05
         # logger.log(f"{y.shape}")
         # print(f"{((y+1)/2).min()}, {((y+1)/2).max()}")
-        save_image(((y+1)/2)[0], args.out_dir + f"/{i}_y.png") # Save y before upsampling
+        save_image(((y+1)/2)[0], args.out_dir + f"/{i}_y.png")  # Save y before upsampling
         y = sr_operator.transpose(y)
         # logger.log(f"{y.shape}")
         x_out, image, x_out_original = superres_sample_image(
@@ -167,6 +170,7 @@ def main():
             generator=args.generator,
             ts=ts,
             model_kwargs=model_kwargs,
+            gt=gt
         )
         # batch = batch.permute(0, 2, 3, 1)
         # batch = batch.reshape(1,256,256,3)#.cpu().numpy().astype(np.float32)
@@ -187,10 +191,10 @@ def main():
         # print(image.shape)  # BGR
         # print(batch.shape)  # RGB
         # mse = torch.mean(((x_out_original + 1) / 2 - (batch + 1) / 2) ** 2)
-        print(f"X_OUT - MIN: {x_out_original.min()}, MAX: {x_out_original.max()}")
-        print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
-        mse = torch.mean((x_out_original - gt) ** 2)
-        psnr = 10 * torch.log10(1 / mse)
+        # print(f"X_OUT - MIN: {x_out_original.min()}, MAX: {x_out_original.max()}")
+        # print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
+        mse = th.mean((x_out_original - gt) ** 2)
+        psnr = 10 * th.log10(1 / mse)
         # print(psnr)
         # print(x_out_original.shape)
         # print(batch.shape)

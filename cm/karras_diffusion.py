@@ -16,6 +16,7 @@ from .random_util import get_generator
 from PIL import Image
 from . import logger
 from torchmetrics.image import TotalVariation
+import lpips
 
 i = 0
 
@@ -919,6 +920,7 @@ def iterative_superres(
         rho=7.0,
         steps=40,
         generator=None,
+        gt=None
 ):
     patch_size = 4
 
@@ -1026,8 +1028,12 @@ def iterative_superres(
     # images = average_image_patches(images)
     # print(f"AFTER: {images.shape}")
     # logger.log(f"{images.shape}")
+    # lpips_fn = lpips.LPIPS(net='vgg').to(dist_util.dev())
+    # psnrs = []
+    # print(steps, len(ts))
     for i in range(len(ts) - 1):
         t = (t_max_rho + ts[i] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
+        # print(t)
         x0 = distiller(x, t * s_in)
         x0 = th.clamp(x0, -1.0, 1.0)
         x0 = replacement(images, x0)
@@ -1035,4 +1041,11 @@ def iterative_superres(
         next_t = np.clip(next_t, t_min, t_max)
         x = x0 + generator.randn_like(x) * np.sqrt(next_t ** 2 - t_min ** 2)
 
+        # print(f"X - MIN: {x.min()}, MAX: {x.max()}")
+        # print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
+        # mse = th.mean(((x+1)/2 - (gt+1)/2) ** 2)
+        # psnr = 10 * th.log10(1 / mse)
+        # print(psnr)
+        # psnrs.append(psnr.item())
+    # print(psnrs)
     return x, images
