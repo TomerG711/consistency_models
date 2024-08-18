@@ -16,6 +16,9 @@ from .random_util import get_generator
 from PIL import Image
 from . import logger
 from torchmetrics.image import TotalVariation
+import lpips
+
+lpips_fn = lpips.LPIPS(net='vgg').to(dist_util.dev())
 
 i = 0
 
@@ -269,7 +272,6 @@ class KarrasDenoiser:
         # print(dist_wavelets[3])
         # print(th.norm(dist_wavelets[3], 1).shape)
         # print(th.norm(dist_wavelets[3], 1))
-
 
         snrs = self.get_snr(t)
         weights = get_weightings(self.weight_schedule, snrs, self.sigma_data)
@@ -919,9 +921,11 @@ def iterative_superres(
         rho=7.0,
         steps=40,
         generator=None,
+        orig_for_psnr=None
 ):
     patch_size = 4
-
+    # orig_for_lpips = 2 * orig_for_psnr - 1.0
+    orig_for_lpips = orig_for_psnr
     def obtain_orthogonal_matrix():
         vector = np.asarray([1] * patch_size ** 2)
         vector = vector / np.linalg.norm(vector)
@@ -1026,7 +1030,12 @@ def iterative_superres(
     # images = average_image_patches(images)
     # print(f"AFTER: {images.shape}")
     # logger.log(f"{images.shape}")
+    psnr_per_iter = np.zeros((len(ts) - 1))
+    lpips_per_iter = np.zeros((len(ts) - 1))
+    iter_ind = -1  # TOM:
     for i in range(len(ts) - 1):
+        iter_ind += 1
+
         t = (t_max_rho + ts[i] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
         x0 = distiller(x, t * s_in)
         x0 = th.clamp(x0, -1.0, 1.0)
@@ -1035,4 +1044,12 @@ def iterative_superres(
         next_t = np.clip(next_t, t_min, t_max)
         x = x0 + generator.randn_like(x) * np.sqrt(next_t ** 2 - t_min ** 2)
 
-    return x, images
+        xt_next_for_psnr = (x.clamp(-1,1) + 1) / 2.0
+        mse = th.mean((xt_next_for_psnr.to('cuda') - orig_for_psnr) ** 2)
+        psnr = 10 * th.log10(1 / mse)
+        psnr_per_iter[iter_ind] = psnr.cpu()
+
+        lpips = th.squeeze(lpips_fn(xt_next_for_psnr, orig_for_lpips)).cpu().detach().numpy()
+        lpips_per_iter[iter_ind] = lpips
+
+    return x, images, psnr_per_iter, lpips_per_iter

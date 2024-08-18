@@ -18,7 +18,8 @@ import lpips
 
 from image_sample import create_argparser
 from inverse.measurements import get_operator
-
+import matplotlib.pyplot as plt  # TOM:
+import os
 
 def save_image(tensor, path):
     """
@@ -51,6 +52,7 @@ def save_image(tensor, path):
     image.save(path)
     # img_.save(path)
 
+
 def superres_sample_image(
         diffusion,
         model,
@@ -60,6 +62,7 @@ def superres_sample_image(
         model_kwargs=None,
         generator=None,
         ts=None,
+        orig_for_psnr=None
 ):
     if generator is None:
         generator = get_generator("dummy")
@@ -72,7 +75,7 @@ def superres_sample_image(
             denoised = denoised.clamp(-1, 1)
         return denoised
 
-    x_out, images = iterative_superres(
+    x_out, images, psnr_per_iter, lpips_per_iter = iterative_superres(
         distiller=denoiser,
         images=image,
         x=generator.randn(image.shape, device=dist_util.dev()),
@@ -81,7 +84,8 @@ def superres_sample_image(
         t_max=80.0,
         rho=diffusion.rho,
         steps=steps,
-        generator=generator
+        generator=generator,
+        orig_for_psnr=orig_for_psnr
     )
     x_out_original = x_out.detach().clone()
     # x_out_original = x_out_original.contiguous()
@@ -94,7 +98,7 @@ def superres_sample_image(
     # images = images.permute(0, 2, 3, 1)
     images = images.contiguous()
 
-    return x_out, images, x_out_original
+    return x_out, images, x_out_original, psnr_per_iter, lpips_per_iter
 
 
 def main():
@@ -148,7 +152,12 @@ def main():
     lpips_fn = lpips.LPIPS(net='vgg').to(dist_util.dev())
     psnrs = []
     lpipses = []
+    psnr_per_img_per_iter = np.zeros((300, 38))  # TOMER
+    # lpips_per_img_per_iter = np.zeros((val_loader.sampler.num_samples,config.time_travel.T_sampling))
+    lpips_per_img_per_iter = np.zeros((300, 38))  # TOMER
+    img_ind = -1
     for gt, _ in data:
+        img_ind += 1
         # logger.log(f"Sampling image {i}")
         # logger.log(f"{batch.shape}")
         gt = gt.to(dist_util.dev())
@@ -156,10 +165,10 @@ def main():
         y += th.torch.randn_like(y, device=y.device) * 0.05
         # logger.log(f"{y.shape}")
         # print(f"{((y+1)/2).min()}, {((y+1)/2).max()}")
-        save_image(((y+1)/2)[0], args.out_dir + f"/{i}_y.png") # Save y before upsampling
+        save_image(((y + 1) / 2)[0], args.out_dir + f"/{i}_y.png")  # Save y before upsampling
         y = sr_operator.transpose(y)
         # logger.log(f"{y.shape}")
-        x_out, image, x_out_original = superres_sample_image(
+        x_out, image, x_out_original, psnr_per_iter, lpips_per_iter = superres_sample_image(
             diffusion=diffusion,
             model=model,
             steps=args.steps,
@@ -167,15 +176,18 @@ def main():
             generator=args.generator,
             ts=ts,
             model_kwargs=model_kwargs,
+            orig_for_psnr=((gt + 1) / 2).clamp(0, 1)
         )
+        psnr_per_img_per_iter[img_ind, :] = psnr_per_iter
+        lpips_per_img_per_iter[img_ind, :] = lpips_per_iter
         # batch = batch.permute(0, 2, 3, 1)
         # batch = batch.reshape(1,256,256,3)#.cpu().numpy().astype(np.float32)
         # print(x_out_original)
         # print(batch)
         # print(x_out_original.shape)
         # print(batch.shape)
-        x_out_original = x_out_original.clamp(-1, 1)
         x_out_original = (x_out_original + 1) / 2
+        x_out_original = x_out_original.clamp(0, 1)
         gt = (gt + 1) / 2
         # x_out_original = x_out_original.permute(0, 3, 1, 2)
         # batch = batch.permute(0, 3, 2, 1)
@@ -187,8 +199,8 @@ def main():
         # print(image.shape)  # BGR
         # print(batch.shape)  # RGB
         # mse = torch.mean(((x_out_original + 1) / 2 - (batch + 1) / 2) ** 2)
-        print(f"X_OUT - MIN: {x_out_original.min()}, MAX: {x_out_original.max()}")
-        print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
+        # print(f"X_OUT - MIN: {x_out_original.min()}, MAX: {x_out_original.max()}")
+        # print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
         mse = torch.mean((x_out_original - gt) ** 2)
         psnr = 10 * torch.log10(1 / mse)
         # print(psnr)
@@ -201,9 +213,34 @@ def main():
                    f"LPIPS: {curr_lpips.item():.4f}, AVG LPIPS: {np.mean(lpipses):.4f}")
         # print(f"{x_out_original.min()}, {x_out_original.max()}")
         # print(f"{gt.min()}, {gt.max()}")
-        save_image(x_out_original[0], args.out_dir + f"/{i}_out.png") # BAD
+        save_image(x_out_original[0], args.out_dir + f"/{i}_out.png")  # BAD
         save_image(gt[0], args.out_dir + f"/{i}_gt.png")
         i += 1
+
+    plt.figure(1)
+    psnr_per_iter_mean = np.mean(psnr_per_img_per_iter, axis=0)
+    psnr_per_iter_std = np.std(psnr_per_img_per_iter, axis=0)
+    plt.plot(range(1, 1 + psnr_per_iter_mean.shape[0]), psnr_per_iter_mean, '-', color='black')
+    plt.fill_between(range(1, 1 + psnr_per_iter_mean.shape[0]), psnr_per_iter_mean - psnr_per_iter_std,
+                     psnr_per_iter_mean + psnr_per_iter_std, color='gray', alpha=0.2)
+    plt.grid()
+    plt.xlabel('Iteration', fontsize=13)
+    plt.ylabel('PSNR [dB]', fontsize=13)
+    plt.ylim((0, 40))
+    plt.savefig(os.path.join(args.out_dir, f"PSNR_vs_Iter.png"))
+
+    plt.figure(2)
+    lpips_per_iter_mean = np.mean(lpips_per_img_per_iter, axis=0)
+    lpips_per_iter_std = np.std(lpips_per_img_per_iter, axis=0)
+    plt.plot(range(1, 1 + lpips_per_iter_mean.shape[0]), lpips_per_iter_mean, '-', color='black')
+    plt.fill_between(range(1, 1 + lpips_per_iter_mean.shape[0]), lpips_per_iter_mean - lpips_per_iter_std,
+                     lpips_per_iter_mean + lpips_per_iter_std, color='gray', alpha=0.2)
+    plt.grid()
+    plt.xlabel('Iteration', fontsize=13)
+    plt.ylabel('LPIPS', fontsize=13)
+    plt.ylim((0, 2))
+    plt.savefig(os.path.join(args.out_dir, f"LPIPS_vs_Iter.png"))
+
     logger.log(f"Final results - PSNR: {np.mean(psnrs)}, LPIPS: {np.mean(lpipses)}")
 
 
