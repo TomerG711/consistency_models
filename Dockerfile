@@ -95,6 +95,7 @@ CMD mpiexec --allow-run-as-root -n 1 python image_sample_superresolution.py --ba
  --use_scale_shift_norm False --dropout 0.0 --image_size 256 --num_channels 256 --num_head_channels 64 \
   --num_res_blocks 2  --resblock_updown True --use_fp16 True --weight_schedule uniform \
  --ts 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40 \
+# --ts 40,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2 \
    --steps 40 --out_dir /opt/consistency_models/samples/lsun_bedroom_256_sr --data_dir /opt/consistency_models/data_dir
 
 #CMD sleep infinity

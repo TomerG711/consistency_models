@@ -117,15 +117,16 @@ class DeterministicIndividualGenerator:
         self.set_seed(seed)
 
     def get_size_and_indices(self, size):
+        print(size)
         indices = th.arange(
             self.done_samples + self.rank,
-            self.done_samples + self.world_size * int(size[0]),
+            self.done_samples + self.world_size * int(size[0][0]),
             self.world_size,
         )
         indices = th.clamp(indices, 0, self.num_samples - 1)
         assert (
-            len(indices) == size[0]
-        ), f"rank={self.rank}, ws={self.world_size}, l={len(indices)}, bs={size[0]}"
+            len(indices) == size[0][0]
+        ), f"rank={self.rank}, ws={self.world_size}, l={len(indices)}, bs={size[0][0]}"
         return (1, *size[1:]), indices
 
     def get_generator(self, device):
