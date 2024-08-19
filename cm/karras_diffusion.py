@@ -919,7 +919,7 @@ def iterative_superres(
         t_min=0.002,
         t_max=80.0,
         rho=7.0,
-        steps=40,
+        steps=27, # 40
         generator=None,
         orig_for_psnr=None,
         sr_operator=None

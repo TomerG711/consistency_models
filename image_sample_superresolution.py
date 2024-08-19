@@ -159,9 +159,9 @@ def main():
     lpipses = []
     y_psnrs = []
     y_lpipses = []
-    psnr_per_img_per_iter = np.zeros((300, 40))  # TOMER
+    psnr_per_img_per_iter = np.zeros((300, 27))  # TOMER
     # lpips_per_img_per_iter = np.zeros((val_loader.sampler.num_samples,config.time_travel.T_sampling))
-    lpips_per_img_per_iter = np.zeros((300, 40))  # TOMER
+    lpips_per_img_per_iter = np.zeros((300, 27))  # TOMER
     img_ind = -1
     for gt, _ in data:
         img_ind += 1
