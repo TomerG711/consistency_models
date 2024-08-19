@@ -921,7 +921,8 @@ def iterative_superres(
         rho=7.0,
         steps=40,
         generator=None,
-        orig_for_psnr=None
+        orig_for_psnr=None,
+        sr_operator=None
 ):
     patch_size = 4
     orig_for_lpips = 2 * orig_for_psnr - 1.0
@@ -952,7 +953,7 @@ def iterative_superres(
                 patch_size,
                 image_size // patch_size,
                 patch_size,
-            )
+            )  # (-1,3,64,4,64,4)
             .permute(0, 1, 2, 4, 3, 5)
             .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
         )
@@ -970,12 +971,18 @@ def iterative_superres(
             .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
         )
 
+        # x0_flatten = sr_operator.forward(x0).reshape(-1, 3, 64 ** 2 // patch_size ** 2, patch_size ** 2)
+        # x1_flatten = sr_operator.forward(x1).reshape(-1, 3, 64 ** 2 // patch_size ** 2, patch_size ** 2)
+
+        # print(f"{x0_flatten.shape}, {x1_flatten.shape}, {Q.shape}")
+
         x0 = th.einsum("bcnd,de->bcne", x0_flatten, Q)
         x1 = th.einsum("bcnd,de->bcne", x1_flatten, Q)
         x_mix = x0.new_zeros(x0.shape)
         x_mix[..., 0] = x0[..., 0]
         x_mix[..., 1:] = x1[..., 1:]
         x_mix = th.einsum("bcne,de->bcnd", x_mix, Q)
+        # print(x_mix.shape)
         x_mix = (
             x_mix.reshape(
                 -1,
@@ -989,6 +996,7 @@ def iterative_superres(
             .reshape(-1, 3, image_size, image_size)
         )
         return x_mix
+        # return sr_operator.transpose(x_mix.reshape(-1, 3, 64, 64))
 
     def average_image_patches(x):
         x_flatten = (
@@ -1027,21 +1035,23 @@ def iterative_superres(
     # print(f"AFTER: {images.shape}")
     # logger.log(f"{images.shape}")
 
-    images_to_psnr = ((images + 1.0) / 2.0).clamp(0, 1.0)
+    images_to_psnr = ((sr_operator.transpose(images) + 1.0) / 2.0).clamp(0, 1.0)
     mse = th.mean((images_to_psnr.to('cuda') - orig_for_psnr) ** 2)
-    psnr = 10 * th.log10(1 / mse)
+    y_psnr = 10 * th.log10(1 / mse).cpu()
 
-    lpips = th.squeeze(lpips_fn(images, orig_for_lpips)).cpu().detach().numpy()
+    y_lpips = th.squeeze(lpips_fn(sr_operator.transpose(images), orig_for_lpips)).cpu().detach().numpy()
 
-    print(f"Y - PSNR: {psnr.cpu():.2f}, LPIPS: {lpips:.4f}")
+    # print(f"Y - PSNR: {psnr.cpu():.2f}, LPIPS: {lpips:.4f}")
 
     psnr_per_iter = np.zeros((len(ts) + 1))
     lpips_per_iter = np.zeros((len(ts) + 1))
-    x = images + generator.randn_like(images) * t_max
+    x = sr_operator.transpose(images) + generator.randn_like(sr_operator.transpose(images)) * t_max
     x = distiller(x, t_max * s_in)
     # x = th.clamp(x, -1.0, 1.0)
 
-    x = replacement(images, x)  # guidance
+    # x = replacement(images, x)  # original guidance
+
+    x = x - sr_operator.transpose(sr_operator.forward(x) - images) # BP guidance
 
     xt_next_for_psnr = ((x + 1.0) / 2.0).clamp(0, 1.0)
     mse = th.mean((xt_next_for_psnr.to('cuda') - orig_for_psnr) ** 2)
@@ -1059,7 +1069,9 @@ def iterative_superres(
         x = distiller(x, t * s_in)
         # x = th.clamp(x, -1.0, 1.0)
 
-        x = replacement(images, x)  # guidance
+        # x = replacement(images, x)  # original guidance
+
+        x = x - sr_operator.transpose(sr_operator.forward(x) - images)  # BP guidance
 
         # next_t = (t_max_rho + (ts[i + 1] - 1) / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
         # next_t = np.clip(next_t, t_min, t_max)
@@ -1072,4 +1084,4 @@ def iterative_superres(
         lpips = th.squeeze(lpips_fn(x, orig_for_lpips)).cpu().detach().numpy()
         lpips_per_iter[iter_ind] = lpips
 
-    return x, images, psnr_per_iter, lpips_per_iter
+    return x, images, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips

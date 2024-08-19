@@ -63,7 +63,8 @@ def superres_sample_image(
         model_kwargs=None,
         generator=None,
         ts=None,
-        orig_for_psnr=None
+        orig_for_psnr=None,
+        sr_operator=None
 ):
     if generator is None:
         generator = get_generator("dummy")
@@ -76,7 +77,7 @@ def superres_sample_image(
             denoised = denoised.clamp(-1, 1)
         return denoised
 
-    x_out, images, psnr_per_iter, lpips_per_iter = iterative_superres(
+    x_out, images, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips = iterative_superres(
         distiller=denoiser,
         images=image,
         # x=generator.randn(image.shape, device=dist_util.dev()),
@@ -87,7 +88,8 @@ def superres_sample_image(
         rho=diffusion.rho,
         steps=steps,
         generator=generator,
-        orig_for_psnr=orig_for_psnr
+        orig_for_psnr=orig_for_psnr,
+        sr_operator=sr_operator
     )
     x_out_original = x_out.detach().clone()
     # x_out_original = x_out_original.contiguous()
@@ -100,7 +102,7 @@ def superres_sample_image(
     # images = images.permute(0, 2, 3, 1)
     images = images.contiguous()
 
-    return x_out, images, x_out_original, psnr_per_iter, lpips_per_iter
+    return x_out, images, x_out_original, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips
 
 
 def main():
@@ -155,6 +157,8 @@ def main():
     lpips_fn = lpips.LPIPS(net='vgg').to(dist_util.dev())
     psnrs = []
     lpipses = []
+    y_psnrs = []
+    y_lpipses = []
     psnr_per_img_per_iter = np.zeros((300, 40))  # TOMER
     # lpips_per_img_per_iter = np.zeros((val_loader.sampler.num_samples,config.time_travel.T_sampling))
     lpips_per_img_per_iter = np.zeros((300, 40))  # TOMER
@@ -170,9 +174,9 @@ def main():
         # logger.log(f"{y.shape}")
         # print(f"{((y+1)/2).min()}, {((y+1)/2).max()}")
         save_image(((y + 1) / 2)[0], args.out_dir + f"/{i}_y.png")  # Save y before upsampling
-        y = sr_operator.transpose(y)
+        # y = sr_operator.transpose(y) # No upsampling for BP
         # logger.log(f"{y.shape}")
-        x_out, image, x_out_original, psnr_per_iter, lpips_per_iter = superres_sample_image(
+        x_out, image, x_out_original, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips = superres_sample_image(
             diffusion=diffusion,
             model=model,
             steps=args.steps,
@@ -180,10 +184,13 @@ def main():
             generator=args.generator,
             ts=ts,
             model_kwargs=model_kwargs,
-            orig_for_psnr=((gt + 1) / 2)
+            orig_for_psnr=((gt + 1) / 2),
+            sr_operator=sr_operator
         )
         psnr_per_img_per_iter[img_ind, :] = psnr_per_iter
         lpips_per_img_per_iter[img_ind, :] = lpips_per_iter
+        y_psnrs.append(y_psnr)
+        y_lpipses.append(y_lpips)
         # batch = batch.permute(0, 2, 3, 1)
         # batch = batch.reshape(1,256,256,3)#.cpu().numpy().astype(np.float32)
         # print(x_out_original)
@@ -246,7 +253,8 @@ def main():
     plt.ylim((0, 2))
     plt.savefig(os.path.join(args.out_dir, f"LPIPS_vs_Iter.png"))
 
-    logger.log(f"Final results - PSNR: {np.mean(psnrs)}, LPIPS: {np.mean(lpipses)}")
+    logger.log(f"Final results - PSNR: {np.mean(psnrs):.2f}, LPIPS: {np.mean(lpipses):.4f}")
+    logger.log(f"Y results - PSNR: {np.mean(y_psnrs):.2f}, LPIPS: {np.mean(y_lpipses):.4f}")
 
 
 if __name__ == "__main__":
