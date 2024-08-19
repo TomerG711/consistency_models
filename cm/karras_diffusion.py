@@ -924,8 +924,10 @@ def iterative_superres(
         orig_for_psnr=None
 ):
     patch_size = 4
-    # orig_for_lpips = 2 * orig_for_psnr - 1.0
-    orig_for_lpips = orig_for_psnr
+    orig_for_lpips = 2 * orig_for_psnr - 1.0
+
+    # orig_for_lpips = orig_for_psnr
+
     def obtain_orthogonal_matrix():
         vector = np.asarray([1] * patch_size ** 2)
         vector = vector / np.linalg.norm(vector)
@@ -968,14 +970,8 @@ def iterative_superres(
             .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
         )
 
-        # print("@@@@@@@@@@@@@")
-        # print(x0_flatten.shape)
-        # print(x1_flatten.shape)
         x0 = th.einsum("bcnd,de->bcne", x0_flatten, Q)
         x1 = th.einsum("bcnd,de->bcne", x1_flatten, Q)
-        # print("#################")
-        # print(x0.shape)
-        # print(x1.shape)
         x_mix = x0.new_zeros(x0.shape)
         x_mix[..., 0] = x0[..., 0]
         x_mix[..., 1:] = x1[..., 1:]
@@ -1030,26 +1026,50 @@ def iterative_superres(
     # images = average_image_patches(images)
     # print(f"AFTER: {images.shape}")
     # logger.log(f"{images.shape}")
-    psnr_per_iter = np.zeros((len(ts) - 1))
-    lpips_per_iter = np.zeros((len(ts) - 1))
-    iter_ind = -1  # TOM:
-    for i in range(len(ts) - 1):
+
+    images_to_psnr = ((images + 1.0) / 2.0).clamp(0, 1.0)
+    mse = th.mean((images_to_psnr.to('cuda') - orig_for_psnr) ** 2)
+    psnr = 10 * th.log10(1 / mse)
+
+    lpips = th.squeeze(lpips_fn(images, orig_for_lpips)).cpu().detach().numpy()
+
+    print(f"Y - PSNR: {psnr.cpu():.2f}, LPIPS: {lpips:.4f}")
+
+    psnr_per_iter = np.zeros((len(ts) + 1))
+    lpips_per_iter = np.zeros((len(ts) + 1))
+    x = images + generator.randn_like(images) * t_max
+    x = distiller(x, t_max * s_in)
+    # x = th.clamp(x, -1.0, 1.0)
+
+    x = replacement(images, x)  # guidance
+
+    xt_next_for_psnr = ((x + 1.0) / 2.0).clamp(0, 1.0)
+    mse = th.mean((xt_next_for_psnr.to('cuda') - orig_for_psnr) ** 2)
+    psnr = 10 * th.log10(1 / mse)
+    psnr_per_iter[0] = psnr.cpu()
+
+    lpips = th.squeeze(lpips_fn(x, orig_for_lpips)).cpu().detach().numpy()
+    lpips_per_iter[0] = lpips
+    iter_ind = 0
+    for i in range(len(ts)):
         iter_ind += 1
 
-        t = (t_max_rho + ts[i] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
-        x0 = distiller(x, t * s_in)
-        x0 = th.clamp(x0, -1.0, 1.0)
-        x0 = replacement(images, x0)
-        next_t = (t_max_rho + ts[i + 1] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
-        next_t = np.clip(next_t, t_min, t_max)
-        x = x0 + generator.randn_like(x) * np.sqrt(next_t ** 2 - t_min ** 2)
+        t = (t_max_rho + (ts[i] - 1) / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
+        x = x + generator.randn_like(x) * np.sqrt(t ** 2 - t_min ** 2)
+        x = distiller(x, t * s_in)
+        # x = th.clamp(x, -1.0, 1.0)
 
-        xt_next_for_psnr = (x.clamp(-1,1) + 1) / 2.0
+        x = replacement(images, x)  # guidance
+
+        # next_t = (t_max_rho + (ts[i + 1] - 1) / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
+        # next_t = np.clip(next_t, t_min, t_max)
+
+        xt_next_for_psnr = ((x + 1.0) / 2.0).clamp(0, 1.0)
         mse = th.mean((xt_next_for_psnr.to('cuda') - orig_for_psnr) ** 2)
         psnr = 10 * th.log10(1 / mse)
         psnr_per_iter[iter_ind] = psnr.cpu()
 
-        lpips = th.squeeze(lpips_fn(xt_next_for_psnr, orig_for_lpips)).cpu().detach().numpy()
+        lpips = th.squeeze(lpips_fn(x, orig_for_lpips)).cpu().detach().numpy()
         lpips_per_iter[iter_ind] = lpips
 
     return x, images, psnr_per_iter, lpips_per_iter

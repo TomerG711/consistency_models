@@ -122,8 +122,9 @@ class InpaintingOperator(LinearOperator):
 class SuperResolutionOperator(LinearOperator):
     def __init__(self, in_shape, scale_factor, device):
         self.device = device
-        self.up_sample = partial(F.interpolate, scale_factor=scale_factor)
+        # self.up_sample = partial(F.interpolate, scale_factor=scale_factor)
         self.down_sample = Resizer(in_shape, 1/scale_factor).to(device)
+        self.up_sample = Resizer((1,3,64,64), scale_factor).to(device)
 
     def forward(self, data, **kwargs):
         data = data.to(self.device) # Sending to device

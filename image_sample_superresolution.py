@@ -21,6 +21,7 @@ from inverse.measurements import get_operator
 import matplotlib.pyplot as plt  # TOM:
 import os
 
+
 def save_image(tensor, path):
     """
     Saves a given torch tensor as a PNG image to the specified path.
@@ -78,7 +79,8 @@ def superres_sample_image(
     x_out, images, psnr_per_iter, lpips_per_iter = iterative_superres(
         distiller=denoiser,
         images=image,
-        x=generator.randn(image.shape, device=dist_util.dev()),
+        # x=generator.randn(image.shape, device=dist_util.dev()),
+        x=image,
         ts=ts,
         t_min=0.002,
         t_max=80.0,
@@ -146,18 +148,20 @@ def main():
         name="super_resolution",
         device=dist_util.dev(),
         in_shape=(1, 3, 256, 256),
+        # out_shape=(1, 3, 64, 64),
         scale_factor=4,
     )
     # lpips_fn = LPIPS(replace_pooling=True, reduction="none")
     lpips_fn = lpips.LPIPS(net='vgg').to(dist_util.dev())
     psnrs = []
     lpipses = []
-    psnr_per_img_per_iter = np.zeros((300, 38))  # TOMER
+    psnr_per_img_per_iter = np.zeros((300, 40))  # TOMER
     # lpips_per_img_per_iter = np.zeros((val_loader.sampler.num_samples,config.time_travel.T_sampling))
-    lpips_per_img_per_iter = np.zeros((300, 38))  # TOMER
+    lpips_per_img_per_iter = np.zeros((300, 40))  # TOMER
     img_ind = -1
     for gt, _ in data:
         img_ind += 1
+        # print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
         # logger.log(f"Sampling image {i}")
         # logger.log(f"{batch.shape}")
         gt = gt.to(dist_util.dev())
@@ -176,7 +180,7 @@ def main():
             generator=args.generator,
             ts=ts,
             model_kwargs=model_kwargs,
-            orig_for_psnr=((gt + 1) / 2).clamp(0, 1)
+            orig_for_psnr=((gt + 1) / 2)
         )
         psnr_per_img_per_iter[img_ind, :] = psnr_per_iter
         lpips_per_img_per_iter[img_ind, :] = lpips_per_iter
@@ -186,9 +190,9 @@ def main():
         # print(batch)
         # print(x_out_original.shape)
         # print(batch.shape)
-        x_out_original = (x_out_original + 1) / 2
-        x_out_original = x_out_original.clamp(0, 1)
-        gt = (gt + 1) / 2
+        # x_out_original_for_lpips = x_out_original.copy()
+        # print(f"X_OUT - MIN: {x_out_original.min()}, MAX: {x_out_original.max()}")
+        # print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
         # x_out_original = x_out_original.permute(0, 3, 1, 2)
         # batch = batch.permute(0, 3, 2, 1)
         # x_out_original = x_out_original.clamp(0, 1)
@@ -199,14 +203,15 @@ def main():
         # print(image.shape)  # BGR
         # print(batch.shape)  # RGB
         # mse = torch.mean(((x_out_original + 1) / 2 - (batch + 1) / 2) ** 2)
-        # print(f"X_OUT - MIN: {x_out_original.min()}, MAX: {x_out_original.max()}")
-        # print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
+        curr_lpips = lpips_fn(x_out_original, gt)
+        x_out_original = (x_out_original + 1.0) / 2.0
+        x_out_original = x_out_original.clamp(0.0, 1.0)
+        gt = (gt + 1.0) / 2.0
         mse = torch.mean((x_out_original - gt) ** 2)
         psnr = 10 * torch.log10(1 / mse)
         # print(psnr)
         # print(x_out_original.shape)
         # print(batch.shape)
-        curr_lpips = lpips_fn(x_out_original, gt)
         psnrs.append(psnr.cpu().numpy())
         lpipses.append(curr_lpips.item())
         logger.log(f"Image {i} - PSNR: {psnr:.2f}, AVG PSNR: {np.mean(psnrs):.2f}, "
