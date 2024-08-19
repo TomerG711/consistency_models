@@ -17,6 +17,7 @@ from PIL import Image
 from . import logger
 from torchmetrics.image import TotalVariation
 import lpips
+import wandb
 
 lpips_fn = lpips.LPIPS(net='vgg').to(dist_util.dev())
 
@@ -919,10 +920,13 @@ def iterative_superres(
         t_min=0.002,
         t_max=80.0,
         rho=7.0,
-        steps=27, # 40
+        steps=28,  # 40
         generator=None,
         orig_for_psnr=None,
-        sr_operator=None
+        sr_operator=None,
+        use_wandb=False,
+        first_noise_injection=0,
+        bp_step_size=0
 ):
     patch_size = 4
     orig_for_lpips = 2 * orig_for_psnr - 1.0
@@ -941,7 +945,7 @@ def iterative_superres(
 
     Q = th.from_numpy(obtain_orthogonal_matrix()).to(dist_util.dev()).to(th.float32)
 
-    image_size = x.shape[-1]
+    image_size = 256 # x.shape[-1]
 
     def replacement(x0, x1):
         x0_flatten = (
@@ -955,7 +959,7 @@ def iterative_superres(
                 patch_size,
             )  # (-1,3,64,4,64,4)
             .permute(0, 1, 2, 4, 3, 5)
-            .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
+            .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)  # (-1,3,4096,16)
         )
         x1_flatten = (
             x1.reshape(-1, 3, image_size, image_size)
@@ -991,7 +995,7 @@ def iterative_superres(
                 image_size // patch_size,
                 patch_size,
                 patch_size,
-            )
+            )  # (-1,3,64,64,4,4)
             .permute(0, 1, 2, 4, 3, 5)
             .reshape(-1, 3, image_size, image_size)
         )
@@ -1041,47 +1045,74 @@ def iterative_superres(
 
     y_lpips = th.squeeze(lpips_fn(sr_operator.transpose(images), orig_for_lpips)).cpu().detach().numpy()
 
-    # print(f"Y - PSNR: {psnr.cpu():.2f}, LPIPS: {lpips:.4f}")
+    # print(f"Y - PSNR: {y_psnr:.2f}, LPIPS: {y_lpips:.4f}")
 
-    psnr_per_iter = np.zeros((len(ts) + 1))
-    lpips_per_iter = np.zeros((len(ts) + 1))
-    x = sr_operator.transpose(images) + generator.randn_like(sr_operator.transpose(images)) * t_max
-    x = distiller(x, t_max * s_in)
+    # psnr_per_iter = np.zeros((len(ts) + 1))
+    # lpips_per_iter = np.zeros((len(ts) + 1))
+    psnr_per_iter = np.zeros(1)
+    lpips_per_iter = np.zeros(1)
+
+    t_first = first_noise_injection
+
+    x = sr_operator.transpose(images) + generator.randn_like(sr_operator.transpose(images)) * t_first
+    # x = generator.randn_like(sr_operator.transpose(images)) * t_max
+    x = distiller(x, t_first * s_in)
     # x = th.clamp(x, -1.0, 1.0)
 
-    # x = replacement(images, x)  # original guidance
-
-    x = x - sr_operator.transpose(sr_operator.forward(x) - images) # BP guidance
+    # print(x.shape)
+    # print(sr_operator.transpose(images).shape)
+    # x = replacement(sr_operator.transpose(images), x)  # original guidance
+    # print("@@@@@@@@@@")
+    # print(x.shape)
+    # print(orig_for_psnr.shape)
+    step_size = bp_step_size
+    x = x - step_size * sr_operator.transpose(sr_operator.forward(x) - images)  # BP guidance
 
     xt_next_for_psnr = ((x + 1.0) / 2.0).clamp(0, 1.0)
     mse = th.mean((xt_next_for_psnr.to('cuda') - orig_for_psnr) ** 2)
     psnr = 10 * th.log10(1 / mse)
     psnr_per_iter[0] = psnr.cpu()
-
     lpips = th.squeeze(lpips_fn(x, orig_for_lpips)).cpu().detach().numpy()
     lpips_per_iter[0] = lpips
-    iter_ind = 0
-    for i in range(len(ts)):
-        iter_ind += 1
 
-        t = (t_max_rho + (ts[i] - 1) / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
-        x = x + generator.randn_like(x) * np.sqrt(t ** 2 - t_min ** 2)
-        x = distiller(x, t * s_in)
-        # x = th.clamp(x, -1.0, 1.0)
-
-        # x = replacement(images, x)  # original guidance
-
-        x = x - sr_operator.transpose(sr_operator.forward(x) - images)  # BP guidance
-
-        # next_t = (t_max_rho + (ts[i + 1] - 1) / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
-        # next_t = np.clip(next_t, t_min, t_max)
-
-        xt_next_for_psnr = ((x + 1.0) / 2.0).clamp(0, 1.0)
-        mse = th.mean((xt_next_for_psnr.to('cuda') - orig_for_psnr) ** 2)
-        psnr = 10 * th.log10(1 / mse)
-        psnr_per_iter[iter_ind] = psnr.cpu()
-
-        lpips = th.squeeze(lpips_fn(x, orig_for_lpips)).cpu().detach().numpy()
-        lpips_per_iter[iter_ind] = lpips
+    # print(f"FIRST - PSNR: {psnr:.2f}, LPIPS: {lpips:.4f}")
+    # t_second = 0.25
+    # x = x + generator.randn_like(x) * t_second
+    # # x = generator.randn_like(sr_operator.transpose(images)) * t_max
+    # x = distiller(x, t_second * s_in)
+    # x = x - step_size * sr_operator.transpose(sr_operator.forward(x) - images)  # BP guidance
+    #
+    # xt_next_for_psnr = ((x + 1.0) / 2.0).clamp(0, 1.0)
+    # mse = th.mean((xt_next_for_psnr.to('cuda') - orig_for_psnr) ** 2)
+    # psnr = 10 * th.log10(1 / mse)
+    # psnr_per_iter[1] = psnr.cpu()
+    # lpips = th.squeeze(lpips_fn(x, orig_for_lpips)).cpu().detach().numpy()
+    # lpips_per_iter[1] = lpips
+    #
+    # print(f"SECOND - PSNR: {psnr:.2f}, LPIPS: {lpips:.4f}")
+    # iter_ind = 0
+    # for i in range(len(ts)):
+    #     iter_ind += 1
+    #
+    #     t = (t_max_rho + (ts[i] - 1) / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
+    #     # print(t, np.sqrt(t ** 2 - t_min ** 2))
+    #     x = x + generator.randn_like(x) * np.sqrt(t ** 2 - t_min ** 2)
+    #     x = distiller(x, t * s_in)
+    #     # x = th.clamp(x, -1.0, 1.0)
+    #
+    #     # x = replacement(images, x)  # original guidance
+    #
+    #     x = x - step_size * sr_operator.transpose(sr_operator.forward(x) - images)  # BP guidance
+    #
+    #     # next_t = (t_max_rho + (ts[i + 1] - 1) / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
+    #     # next_t = np.clip(next_t, t_min, t_max)
+    #
+    #     xt_next_for_psnr = ((x + 1.0) / 2.0).clamp(0, 1.0)
+    #     mse = th.mean((xt_next_for_psnr.to('cuda') - orig_for_psnr) ** 2)
+    #     psnr = 10 * th.log10(1 / mse)
+    #     psnr_per_iter[iter_ind] = psnr.cpu()
+    #
+    #     lpips = th.squeeze(lpips_fn(x, orig_for_lpips)).cpu().detach().numpy()
+    #     lpips_per_iter[iter_ind] = lpips
 
     return x, images, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips

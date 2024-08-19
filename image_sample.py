@@ -22,7 +22,7 @@ from cm.random_util import get_generator
 from cm.karras_diffusion import karras_sample
 
 
-def main():# 256_dist_target_comp_hh_0.1_hl_0.1_lh_0.1_ll_0.1
+def main():  # 256_dist_target_comp_hh_0.1_hl_0.1_lh_0.1_ll_0.1
     os.environ["CKPTS_DIR"] = "/opt/consistency_models/samples/256_dist_tv_1e-5_20k_ckpt_model80k_onestep"
     args = create_argparser().parse_args()
 
@@ -137,6 +137,10 @@ def create_argparser():
         ts="",
         out_dir="",
         data_dir="",
+        wandb=False,
+        wandb_experiment_name="",
+        bp_step_size=0.5,
+        n1=0.5  # first noise injection
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

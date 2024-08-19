@@ -41,8 +41,9 @@ def save_image(tensor, path):
     numpy_array = (numpy_array * 255).astype(np.uint8)
 
     # Check the shape and convert to appropriate format
+    # print(numpy_array.shape)
     if numpy_array.ndim == 3 and numpy_array.shape[0] == 3:
-        # If the tensor is in the format [C, H, W], transpose to [H, W, C]
+    #     If the tensor is in the format [C, H, W], transpose to [H, W, C]
         numpy_array = numpy_array.transpose(1, 2, 0)
 
     # Create a PIL image
@@ -64,7 +65,10 @@ def superres_sample_image(
         generator=None,
         ts=None,
         orig_for_psnr=None,
-        sr_operator=None
+        sr_operator=None,
+        use_wandb=False,
+        first_noise_injection=0,
+        bp_step_size=0
 ):
     if generator is None:
         generator = get_generator("dummy")
@@ -89,7 +93,10 @@ def superres_sample_image(
         steps=steps,
         generator=generator,
         orig_for_psnr=orig_for_psnr,
-        sr_operator=sr_operator
+        sr_operator=sr_operator,
+        use_wandb=use_wandb,
+        first_noise_injection=first_noise_injection,
+        bp_step_size=bp_step_size
     )
     x_out_original = x_out.detach().clone()
     # x_out_original = x_out_original.contiguous()
@@ -107,6 +114,19 @@ def superres_sample_image(
 
 def main():
     args = create_argparser().parse_args()
+    if args.wandb:
+        import wandb
+        wandb.init(
+            project="CM-BP-LSUN-bedroom-1-NFEs-sr_4_sy_0.05",
+            entity="tomergarber",
+            name=args.wandb_experiment_name,
+            settings=wandb.Settings(start_method="fork"),
+        )
+        wandb.config.update(args)
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
     dist_util.setup_dist()
     logger.configure()
 
@@ -159,9 +179,9 @@ def main():
     lpipses = []
     y_psnrs = []
     y_lpipses = []
-    psnr_per_img_per_iter = np.zeros((300, 27))  # TOMER
+    psnr_per_img_per_iter = np.zeros((300, 1))  # TOMER
     # lpips_per_img_per_iter = np.zeros((val_loader.sampler.num_samples,config.time_travel.T_sampling))
-    lpips_per_img_per_iter = np.zeros((300, 27))  # TOMER
+    lpips_per_img_per_iter = np.zeros((300, 1))  # TOMER
     img_ind = -1
     for gt, _ in data:
         img_ind += 1
@@ -174,6 +194,7 @@ def main():
         # logger.log(f"{y.shape}")
         # print(f"{((y+1)/2).min()}, {((y+1)/2).max()}")
         save_image(((y + 1) / 2)[0], args.out_dir + f"/{i}_y.png")  # Save y before upsampling
+        save_image(((sr_operator.transpose(y) + 1) / 2)[0], args.out_dir + f"/{i}_Apy.png")  # Save Apy
         # y = sr_operator.transpose(y) # No upsampling for BP
         # logger.log(f"{y.shape}")
         x_out, image, x_out_original, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips = superres_sample_image(
@@ -185,7 +206,10 @@ def main():
             ts=ts,
             model_kwargs=model_kwargs,
             orig_for_psnr=((gt + 1) / 2),
-            sr_operator=sr_operator
+            sr_operator=sr_operator,
+            use_wandb=args.wandb,
+            first_noise_injection=args.n1,
+            bp_step_size=args.bp_step_size
         )
         psnr_per_img_per_iter[img_ind, :] = psnr_per_iter
         lpips_per_img_per_iter[img_ind, :] = lpips_per_iter
@@ -228,7 +252,8 @@ def main():
         save_image(x_out_original[0], args.out_dir + f"/{i}_out.png")  # BAD
         save_image(gt[0], args.out_dir + f"/{i}_gt.png")
         i += 1
-
+        if args.wandb:
+            wandb.log({"lpips": np.mean(lpipses), "psnr": np.mean(psnrs)})
     plt.figure(1)
     psnr_per_iter_mean = np.mean(psnr_per_img_per_iter, axis=0)
     psnr_per_iter_std = np.std(psnr_per_img_per_iter, axis=0)
