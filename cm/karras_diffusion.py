@@ -1042,6 +1042,7 @@ def iterative_superres(
     images_to_psnr = ((sr_operator.transpose(images) + 1.0) / 2.0).clamp(0, 1.0)
     mse = th.mean((images_to_psnr.to('cuda') - orig_for_psnr) ** 2)
     y_psnr = 10 * th.log10(1 / mse).cpu()
+    # print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
 
     y_lpips = th.squeeze(lpips_fn(sr_operator.transpose(images), orig_for_lpips)).cpu().detach().numpy()
 

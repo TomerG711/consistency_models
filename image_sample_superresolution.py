@@ -117,7 +117,7 @@ def main():
     if args.wandb:
         import wandb
         wandb.init(
-            project="CM-BP-LSUN-bedroom-1-NFEs-sr_4_sy_0.05",
+            project="CM-BP-LSUN-bedroom-1-NFEs-sr_4_sy_0",
             entity="tomergarber",
             name=args.wandb_experiment_name,
             settings=wandb.Settings(start_method="fork"),
@@ -190,7 +190,7 @@ def main():
         # logger.log(f"{batch.shape}")
         gt = gt.to(dist_util.dev())
         y = sr_operator.forward(gt)
-        y += th.torch.randn_like(y, device=y.device) * 0.05
+        # y += th.torch.randn_like(y, device=y.device) * 0.05
         # logger.log(f"{y.shape}")
         # print(f"{((y+1)/2).min()}, {((y+1)/2).max()}")
         save_image(((y + 1) / 2)[0], args.out_dir + f"/{i}_y.png")  # Save y before upsampling
@@ -222,8 +222,6 @@ def main():
         # print(x_out_original.shape)
         # print(batch.shape)
         # x_out_original_for_lpips = x_out_original.copy()
-        # print(f"X_OUT - MIN: {x_out_original.min()}, MAX: {x_out_original.max()}")
-        # print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
         # x_out_original = x_out_original.permute(0, 3, 1, 2)
         # batch = batch.permute(0, 3, 2, 1)
         # x_out_original = x_out_original.clamp(0, 1)
@@ -234,6 +232,10 @@ def main():
         # print(image.shape)  # BGR
         # print(batch.shape)  # RGB
         # mse = torch.mean(((x_out_original + 1) / 2 - (batch + 1) / 2) ** 2)
+        # print(f"X_OUT - MIN: {x_out_original.min()}, MAX: {x_out_original.max()}")
+        # print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
+        # print(x_out_original.shape)
+        # print(gt.shape)
         curr_lpips = lpips_fn(x_out_original, gt)
         x_out_original = (x_out_original + 1.0) / 2.0
         x_out_original = x_out_original.clamp(0.0, 1.0)
