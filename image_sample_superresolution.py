@@ -68,7 +68,8 @@ def superres_sample_image(
         sr_operator=None,
         use_wandb=False,
         first_noise_injection=0,
-        bp_step_size=0
+        bp_step_size=0,
+        denoiser_noise=0
 ):
     if generator is None:
         generator = get_generator("dummy")
@@ -96,7 +97,8 @@ def superres_sample_image(
         sr_operator=sr_operator,
         use_wandb=use_wandb,
         first_noise_injection=first_noise_injection,
-        bp_step_size=bp_step_size
+        bp_step_size=bp_step_size,
+        denoiser_noise=denoiser_noise
     )
     x_out_original = x_out.detach().clone()
     # x_out_original = x_out_original.contiguous()
@@ -193,8 +195,8 @@ def main():
         # y += th.torch.randn_like(y, device=y.device) * 0.05
         # logger.log(f"{y.shape}")
         # print(f"{((y+1)/2).min()}, {((y+1)/2).max()}")
-        save_image(((y + 1) / 2)[0], args.out_dir + f"/{i}_y.png")  # Save y before upsampling
-        save_image(((sr_operator.transpose(y) + 1) / 2)[0], args.out_dir + f"/{i}_Apy.png")  # Save Apy
+        save_image(((y + 1) / 2)[0].clamp(0.0, 1.0), args.out_dir + f"/{i}_y.png")  # Save y before upsampling
+        save_image(((sr_operator.transpose(y) + 1.0) / 2.0)[0].clamp(0.0, 1.0), args.out_dir + f"/{i}_Apy.png")  # Save Apy
         # y = sr_operator.transpose(y) # No upsampling for BP
         # logger.log(f"{y.shape}")
         x_out, image, x_out_original, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips = superres_sample_image(
@@ -209,7 +211,8 @@ def main():
             sr_operator=sr_operator,
             use_wandb=args.wandb,
             first_noise_injection=args.n1,
-            bp_step_size=args.bp_step_size
+            bp_step_size=args.bp_step_size,
+            denoiser_noise=args.denoiser_noise
         )
         psnr_per_img_per_iter[img_ind, :] = psnr_per_iter
         lpips_per_img_per_iter[img_ind, :] = lpips_per_iter

@@ -140,7 +140,8 @@ def create_argparser():
         wandb=False,
         wandb_experiment_name="",
         bp_step_size=0.5,
-        n1=0.5  # first noise injection
+        n1=0.5,  # first noise injection
+        denoiser_noise=0.5
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

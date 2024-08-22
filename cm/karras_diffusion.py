@@ -926,7 +926,8 @@ def iterative_superres(
         sr_operator=None,
         use_wandb=False,
         first_noise_injection=0,
-        bp_step_size=0
+        bp_step_size=0,
+        denoiser_noise=0
 ):
     patch_size = 4
     orig_for_lpips = 2 * orig_for_psnr - 1.0
@@ -1056,8 +1057,9 @@ def iterative_superres(
     t_first = first_noise_injection
 
     x = sr_operator.transpose(images) + generator.randn_like(sr_operator.transpose(images)) * t_first
+
     # x = generator.randn_like(sr_operator.transpose(images)) * t_max
-    x = distiller(x, t_first * s_in)
+    x = distiller(x, denoiser_noise * s_in)
     # x = th.clamp(x, -1.0, 1.0)
 
     # print(x.shape)
