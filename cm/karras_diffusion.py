@@ -1119,3 +1119,163 @@ def iterative_superres(
     #     lpips_per_iter[iter_ind] = lpips
 
     return x, images, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips
+
+
+
+@th.no_grad()
+def iterative_superres_original(
+        distiller,
+        images,
+        x,
+        ts,
+        t_min=0.002,
+        t_max=80.0,
+        rho=7.0,
+        steps=40,  # 40
+        generator=None,
+        orig_for_psnr=None,
+        sr_operator=None,
+        use_wandb=False,
+        first_noise_injection=0,
+        bp_step_size=0,
+        denoiser_noise=0
+):
+    patch_size = 4
+    orig_for_lpips = 2 * orig_for_psnr - 1.0
+    # images = images + th.randn_like(images) * 0.05
+
+    def obtain_orthogonal_matrix():
+        vector = np.asarray([1] * patch_size ** 2)
+        vector = vector / np.linalg.norm(vector)
+        matrix = np.eye(patch_size ** 2)
+        matrix[:, 0] = vector
+        matrix = np.linalg.qr(matrix)[0]
+        if np.sum(matrix[:, 0]) < 0:
+            matrix = -matrix
+        return matrix
+
+    Q = th.from_numpy(obtain_orthogonal_matrix()).to(dist_util.dev()).to(th.float32)
+
+    image_size = 256 # x.shape[-1]
+
+    def replacement(x0, x1):
+        x0_flatten = (
+            x0.reshape(-1, 3, image_size, image_size)
+            .reshape(
+                -1,
+                3,
+                image_size // patch_size,
+                patch_size,
+                image_size // patch_size,
+                patch_size,
+            )  # (-1,3,64,4,64,4)
+            .permute(0, 1, 2, 4, 3, 5)
+            .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)  # (-1,3,4096,16)
+        )
+        x1_flatten = (
+            x1.reshape(-1, 3, image_size, image_size)
+            .reshape(
+                -1,
+                3,
+                image_size // patch_size,
+                patch_size,
+                image_size // patch_size,
+                patch_size,
+            )
+            .permute(0, 1, 2, 4, 3, 5)
+            .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
+        )
+
+        # x0_flatten = sr_operator.forward(x0).reshape(-1, 3, 64 ** 2 // patch_size ** 2, patch_size ** 2)
+        # x1_flatten = sr_operator.forward(x1).reshape(-1, 3, 64 ** 2 // patch_size ** 2, patch_size ** 2)
+
+        # print(f"{x0_flatten.shape}, {x1_flatten.shape}, {Q.shape}")
+
+        x0 = th.einsum("bcnd,de->bcne", x0_flatten, Q)
+        x1 = th.einsum("bcnd,de->bcne", x1_flatten, Q)
+        x_mix = x0.new_zeros(x0.shape)
+        x_mix[..., 0] = x0[..., 0]
+        x_mix[..., 1:] = x1[..., 1:]
+        x_mix = th.einsum("bcne,de->bcnd", x_mix, Q)
+        x_mix = (
+            x_mix.reshape(
+                -1,
+                3,
+                image_size // patch_size,
+                image_size // patch_size,
+                patch_size,
+                patch_size,
+            )  # (-1,3,64,64,4,4)
+            .permute(0, 1, 2, 4, 3, 5)
+            .reshape(-1, 3, image_size, image_size)
+        )
+        return x_mix
+        # return sr_operator.transpose(x_mix.reshape(-1, 3, 64, 64))
+
+    def average_image_patches(x):
+        x_flatten = (
+            x.reshape(-1, 3, image_size, image_size)
+            .reshape(
+                -1,
+                3,
+                image_size // patch_size,
+                patch_size,
+                image_size // patch_size,
+                patch_size,
+            )
+            .permute(0, 1, 2, 4, 3, 5)
+            .reshape(-1, 3, image_size ** 2 // patch_size ** 2, patch_size ** 2)
+        )
+        x_flatten[..., :] = x_flatten.mean(dim=-1, keepdim=True)
+        return (
+            x_flatten.reshape(
+                -1,
+                3,
+                image_size // patch_size,
+                image_size // patch_size,
+                patch_size,
+                patch_size,
+            )
+            .permute(0, 1, 2, 4, 3, 5)
+            .reshape(-1, 3, image_size, image_size)
+        )
+
+
+    # images_to_psnr = ((sr_operator.transpose(images) + 1.0) / 2.0).clamp(0, 1.0)
+    images_to_psnr = ((images + 1.0) / 2.0).clamp(0, 1.0)
+    mse = th.mean((images_to_psnr.to('cuda') - orig_for_psnr) ** 2)
+    y_psnr = 10 * th.log10(1 / mse).cpu()
+    # print(f"GT - MIN: {gt.min()}, MAX: {gt.max()}")
+
+    # y_lpips = th.squeeze(lpips_fn(sr_operator.transpose(images), orig_for_lpips)).cpu().detach().numpy()
+    y_lpips = th.squeeze(lpips_fn(images, orig_for_lpips)).cpu().detach().numpy()
+    t_max_rho = t_max ** (1 / rho)
+    t_min_rho = t_min ** (1 / rho)
+    s_in = x.new_ones([x.shape[0]])
+    # images = sr_operator.transpose(images)
+    # images = images + th.randn_like(images) * 0.05
+    # images = average_image_patches(images)
+    x = images
+    psnr_per_iter = np.zeros((len(ts) - 1))
+    lpips_per_iter = np.zeros((len(ts) - 1))
+    idx = 0
+    for i in range(len(ts) - 1):
+        t = (t_max_rho + ts[i] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
+        x0 = distiller(x, t * s_in)
+        x0 = th.clamp(x0, -1.0, 1.0)
+        x0 = replacement(images, x0)
+        next_t = (t_max_rho + ts[i + 1] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
+        next_t = np.clip(next_t, t_min, t_max)
+
+        x = x0 + generator.randn_like(x) * np.sqrt(next_t**2 - t_min**2)
+
+        xt_next_for_psnr = ((x + 1.0) / 2.0).clamp(0, 1.0)
+        mse = th.mean((xt_next_for_psnr.to('cuda') - orig_for_psnr) ** 2)
+        psnr = 10 * th.log10(1 / mse)
+        psnr_per_iter[idx] = psnr.cpu()
+        lpips = th.squeeze(lpips_fn(x, orig_for_lpips)).cpu().detach().numpy()
+        lpips_per_iter[idx] = lpips
+        idx += 1
+
+
+    return x, images, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips

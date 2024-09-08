@@ -2,7 +2,7 @@ import torch as th
 import cv2
 from cm import dist_util, logger
 from cm.image_datasets import load_data
-from cm.karras_diffusion import iterative_superres
+from cm.karras_diffusion import iterative_superres, iterative_superres_original
 from cm.random_util import get_generator
 from cm.script_util import (
     model_and_diffusion_defaults,
@@ -82,7 +82,7 @@ def superres_sample_image(
             denoised = denoised.clamp(-1, 1)
         return denoised
 
-    x_out, images, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips = iterative_superres(
+    x_out, images, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips = iterative_superres_original(
         distiller=denoiser,
         images=image,
         # x=generator.randn(image.shape, device=dist_util.dev()),
@@ -181,9 +181,9 @@ def main():
     lpipses = []
     y_psnrs = []
     y_lpipses = []
-    psnr_per_img_per_iter = np.zeros((300, 1))  # TOMER
+    psnr_per_img_per_iter = np.zeros((300, 38))  # TOMER
     # lpips_per_img_per_iter = np.zeros((val_loader.sampler.num_samples,config.time_travel.T_sampling))
-    lpips_per_img_per_iter = np.zeros((300, 1))  # TOMER
+    lpips_per_img_per_iter = np.zeros((300, 38))  # TOMER
     img_ind = -1
     for gt, _ in data:
         img_ind += 1
@@ -192,18 +192,20 @@ def main():
         # logger.log(f"{batch.shape}")
         gt = gt.to(dist_util.dev())
         y = sr_operator.forward(gt)
-        # y += th.torch.randn_like(y, device=y.device) * 0.05
+        y += th.randn_like(y, device=y.device) * 0.05
+        apy = sr_operator.transpose(y)
+        # y = gt
         # logger.log(f"{y.shape}")
         # print(f"{((y+1)/2).min()}, {((y+1)/2).max()}")
         save_image(((y + 1) / 2)[0].clamp(0.0, 1.0), args.out_dir + f"/{i}_y.png")  # Save y before upsampling
-        save_image(((sr_operator.transpose(y) + 1.0) / 2.0)[0].clamp(0.0, 1.0), args.out_dir + f"/{i}_Apy.png")  # Save Apy
+        save_image(((apy + 1.0) / 2.0)[0].clamp(0.0, 1.0), args.out_dir + f"/{i}_Apy.png")  # Save Apy
         # y = sr_operator.transpose(y) # No upsampling for BP
         # logger.log(f"{y.shape}")
         x_out, image, x_out_original, psnr_per_iter, lpips_per_iter, y_psnr, y_lpips = superres_sample_image(
             diffusion=diffusion,
             model=model,
             steps=args.steps,
-            image=y,
+            image=apy,
             generator=args.generator,
             ts=ts,
             model_kwargs=model_kwargs,

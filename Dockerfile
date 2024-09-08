@@ -90,15 +90,15 @@ RUN pip install matplotlib
 
 
 
-#CMD mpiexec --allow-run-as-root -n 1 python image_sample_superresolution.py --batch_size 1 --generator dummy --training_mode consistency_distillation \
-# --model_path /opt/consistency_models/ckpts/cd_bedroom256_lpips.pt --attention_resolutions 32,16,8 --class_cond False \
-# --use_scale_shift_norm False --dropout 0.0 --image_size 256 --num_channels 256 --num_head_channels 64 \
-#  --num_res_blocks 2  --resblock_updown True --use_fp16 True --weight_schedule uniform \
-## --ts 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40 \
+CMD mpiexec --allow-run-as-root -n 1 python image_sample_superresolution.py --batch_size 1 --generator dummy --training_mode consistency_distillation \
+ --model_path /opt/consistency_models/ckpts/cd_bedroom256_lpips.pt --attention_resolutions 32,16,8 --class_cond False \
+ --use_scale_shift_norm False --dropout 0.0 --image_size 256 --num_channels 256 --num_head_channels 64 \
+  --num_res_blocks 2  --resblock_updown True --use_fp16 True --weight_schedule uniform \
+ --ts 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40 \
 # --ts 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27 \
-#   --steps 40 --out_dir /opt/consistency_models/samples/lsun_bedroom_256_sr --data_dir /opt/consistency_models/data_dir \
-#   --seed 1234 --wandb True
+   --steps 40 --out_dir /opt/consistency_models/samples/lsun_bedroom_256_sr --data_dir /opt/consistency_models/data_dir \
+   --seed 1234
 
-CMD bash launch_sweep.sh
+#CMD bash launch_sweep.sh
 
 #CMD sleep infinity
